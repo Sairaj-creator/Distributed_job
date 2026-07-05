@@ -1,0 +1,110 @@
+package com.taskflow.scheduler;
+
+import com.taskflow.api.JobPriorityStrategy;
+import com.taskflow.concurrency.LruCache;
+import com.taskflow.core.JobDefinition;
+import com.taskflow.core.JobId;
+import com.taskflow.core.JobStatus;
+import com.taskflow.core.Workflow;
+import com.taskflow.core.WorkflowRun;
+import com.taskflow.exception.SchedulerShutdownException;
+import com.taskflow.scheduler.priority.FanOutFirstStrategy;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Coordinates workflow execution by validating DAGs, executing topological levels, and stopping on failures.
+ */
+public final class SchedulerEngine implements AutoCloseable {
+    private final DagValidator dagValidator;
+    private final TopologicalSorter topologicalSorter;
+    private final JobExecutor jobExecutor;
+    private final JobPriorityStrategy priorityStrategy;
+    private final LruCache<String, List<List<JobId>>> topoCache;
+    private final Clock clock;
+    private final AtomicLong workflowRunIds = new AtomicLong(1);
+    private final AtomicBoolean acceptingWork = new AtomicBoolean(true);
+
+    public SchedulerEngine(JobExecutor jobExecutor, Clock clock) {
+        this(new DagValidator(), new TopologicalSorter(), jobExecutor, new FanOutFirstStrategy(), new LruCache<>(128), clock);
+    }
+
+    public SchedulerEngine(
+            DagValidator dagValidator,
+            TopologicalSorter topologicalSorter,
+            JobExecutor jobExecutor,
+            JobPriorityStrategy priorityStrategy,
+            LruCache<String, List<List<JobId>>> topoCache,
+            Clock clock) {
+        this.dagValidator = Objects.requireNonNull(dagValidator, "dagValidator");
+        this.topologicalSorter = Objects.requireNonNull(topologicalSorter, "topologicalSorter");
+        this.jobExecutor = Objects.requireNonNull(jobExecutor, "jobExecutor");
+        this.priorityStrategy = Objects.requireNonNull(priorityStrategy, "priorityStrategy");
+        this.topoCache = Objects.requireNonNull(topoCache, "topoCache");
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
+
+    /**
+     * Executes a workflow immediately.
+     *
+     * @param workflow workflow definition
+     * @return completed workflow run
+     */
+    public WorkflowRun submitRun(Workflow workflow) {
+        if (!acceptingWork.get()) {
+            throw new SchedulerShutdownException("scheduler is shutting down");
+        }
+        if (workflow.isPaused()) {
+            return new WorkflowRun(nextRunId(), workflow.id(), "MANUAL", JobStatus.SKIPPED, clock.instant(), clock.instant());
+        }
+        dagValidator.validate(workflow);
+        List<List<JobId>> levels = topoCache.get(workflow.id().value())
+                .orElseGet(() -> {
+                    List<List<JobId>> sorted = topologicalSorter.sort(workflow);
+                    topoCache.put(workflow.id().value(), sorted);
+                    return sorted;
+                });
+        long workflowRunId = nextRunId();
+        Instant started = clock.instant();
+        JobStatus finalStatus = JobStatus.SUCCEEDED;
+
+        for (List<JobId> level : levels) {
+            List<JobDefinition> ready = new ArrayList<>();
+            for (JobId jobId : level) {
+                workflow.findJob(jobId).ifPresent(ready::add);
+            }
+            Comparator<JobDefinition> comparator = priorityStrategy.comparator(workflow);
+            ready.sort(comparator);
+            List<CompletableFuture<JobStatus>> futures = ready.stream()
+                    .map(job -> jobExecutor.executeWithRetry(workflow, job, workflowRunId).thenApply(run -> run.status()))
+                    .toList();
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+            boolean failed = futures.stream()
+                    .map(CompletableFuture::join)
+                    .anyMatch(status -> status == JobStatus.FAILED || status == JobStatus.TIMED_OUT || status == JobStatus.CANCELLED);
+            if (failed) {
+                finalStatus = JobStatus.FAILED;
+                break;
+            }
+        }
+        return new WorkflowRun(workflowRunId, workflow.id(), "MANUAL", finalStatus, started, clock.instant());
+    }
+
+    private long nextRunId() {
+        return workflowRunIds.getAndIncrement();
+    }
+
+    @Override
+    public void close() {
+        acceptingWork.set(false);
+        jobExecutor.close();
+    }
+}
