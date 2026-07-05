@@ -11,6 +11,7 @@ import com.taskflow.scheduler.JobExecutor;
 import com.taskflow.scheduler.SchedulerEngine;
 import com.taskflow.service.ReportService;
 import com.taskflow.service.SchedulingService;
+import com.taskflow.service.WorkflowCheckpointService;
 import com.taskflow.service.WorkflowService;
 
 import java.time.Clock;
@@ -36,7 +37,7 @@ public final class AppContext implements AutoCloseable {
                 eventBus,
                 new JobLockRegistry(),
                 Clock.systemUTC());
-        this.schedulerEngine = new SchedulerEngine(jobExecutor, Clock.systemUTC());
+        this.schedulerEngine = new SchedulerEngine(jobExecutor, Clock.systemUTC(), jobRunRepository);
         this.workflowService = new WorkflowService(workflowRepository, new DagValidator());
         this.schedulingService = new SchedulingService(workflowService, schedulerEngine);
         this.reportService = new ReportService(jobRunRepository);
@@ -45,6 +46,7 @@ public final class AppContext implements AutoCloseable {
     private final WorkflowService workflowService;
     private final SchedulingService schedulingService;
     private final ReportService reportService;
+    private final WorkflowCheckpointService workflowCheckpointService = new WorkflowCheckpointService();
 
     public WorkflowService workflowService() {
         return workflowService;
@@ -56,6 +58,10 @@ public final class AppContext implements AutoCloseable {
 
     public ReportService reportService() {
         return reportService;
+    }
+
+    public WorkflowCheckpointService workflowCheckpointService() {
+        return workflowCheckpointService;
     }
 
     public MetricsEventListener metricsEventListener() {

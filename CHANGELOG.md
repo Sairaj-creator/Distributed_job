@@ -5,6 +5,7 @@
 - Completed the TaskFlow implementation described in `TaskFlow_SRS_AI_Agent_Blueprint.md`.
 - Added Maven build, Java 17 source target, JUnit 5, Mockito, SLF4J/Logback, HikariCP, PostgreSQL JDBC, H2 tests, and JaCoCo.
 - Implemented domain, graph algorithms, cron scheduling, worker execution, retries, events, persistence, service, CLI, HTTP, config, and docs.
+- Added scheduler-to-repository job-run persistence, repository-backed CLI history, checkpoint serialization, and graceful executor shutdown.
 
 ## 0.1.0 - 2026-07-05
 

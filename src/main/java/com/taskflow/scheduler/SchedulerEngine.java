@@ -4,10 +4,12 @@ import com.taskflow.api.JobPriorityStrategy;
 import com.taskflow.concurrency.LruCache;
 import com.taskflow.core.JobDefinition;
 import com.taskflow.core.JobId;
+import com.taskflow.core.JobRun;
 import com.taskflow.core.JobStatus;
 import com.taskflow.core.Workflow;
 import com.taskflow.core.WorkflowRun;
 import com.taskflow.exception.SchedulerShutdownException;
+import com.taskflow.persistence.JobRunRepository;
 import com.taskflow.scheduler.priority.FanOutFirstStrategy;
 
 import java.time.Clock;
@@ -29,12 +31,18 @@ public final class SchedulerEngine implements AutoCloseable {
     private final JobExecutor jobExecutor;
     private final JobPriorityStrategy priorityStrategy;
     private final LruCache<String, List<List<JobId>>> topoCache;
+    private final JobRunRepository jobRunRepository;
     private final Clock clock;
     private final AtomicLong workflowRunIds = new AtomicLong(1);
     private final AtomicBoolean acceptingWork = new AtomicBoolean(true);
 
     public SchedulerEngine(JobExecutor jobExecutor, Clock clock) {
-        this(new DagValidator(), new TopologicalSorter(), jobExecutor, new FanOutFirstStrategy(), new LruCache<>(128), clock);
+        this(jobExecutor, clock, null);
+    }
+
+    public SchedulerEngine(JobExecutor jobExecutor, Clock clock, JobRunRepository jobRunRepository) {
+        this(new DagValidator(), new TopologicalSorter(), jobExecutor, new FanOutFirstStrategy(),
+                new LruCache<>(128), jobRunRepository, clock);
     }
 
     public SchedulerEngine(
@@ -43,12 +51,14 @@ public final class SchedulerEngine implements AutoCloseable {
             JobExecutor jobExecutor,
             JobPriorityStrategy priorityStrategy,
             LruCache<String, List<List<JobId>>> topoCache,
+            JobRunRepository jobRunRepository,
             Clock clock) {
         this.dagValidator = Objects.requireNonNull(dagValidator, "dagValidator");
         this.topologicalSorter = Objects.requireNonNull(topologicalSorter, "topologicalSorter");
         this.jobExecutor = Objects.requireNonNull(jobExecutor, "jobExecutor");
         this.priorityStrategy = Objects.requireNonNull(priorityStrategy, "priorityStrategy");
         this.topoCache = Objects.requireNonNull(topoCache, "topoCache");
+        this.jobRunRepository = jobRunRepository;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -83,13 +93,16 @@ public final class SchedulerEngine implements AutoCloseable {
             }
             Comparator<JobDefinition> comparator = priorityStrategy.comparator(workflow);
             ready.sort(comparator);
-            List<CompletableFuture<JobStatus>> futures = ready.stream()
-                    .map(job -> jobExecutor.executeWithRetry(workflow, job, workflowRunId).thenApply(run -> run.status()))
+            List<CompletableFuture<JobRun>> futures = ready.stream()
+                    .map(job -> jobExecutor.executeWithRetry(workflow, job, workflowRunId).thenApply(this::persistRun))
                     .toList();
             CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
             boolean failed = futures.stream()
                     .map(CompletableFuture::join)
-                    .anyMatch(status -> status == JobStatus.FAILED || status == JobStatus.TIMED_OUT || status == JobStatus.CANCELLED);
+                    .map(JobRun::status)
+                    .anyMatch(status -> status == JobStatus.FAILED
+                            || status == JobStatus.TIMED_OUT
+                            || status == JobStatus.CANCELLED);
             if (failed) {
                 finalStatus = JobStatus.FAILED;
                 break;
@@ -100,6 +113,10 @@ public final class SchedulerEngine implements AutoCloseable {
 
     private long nextRunId() {
         return workflowRunIds.getAndIncrement();
+    }
+
+    private JobRun persistRun(JobRun run) {
+        return jobRunRepository == null ? run : jobRunRepository.save(run);
     }
 
     @Override

@@ -1,11 +1,12 @@
 package com.taskflow.api;
 
+import java.io.Serializable;
 import java.time.Duration;
 
 /**
  * Strategy deciding if and when a failed job attempt should be retried.
  */
-public interface RetryPolicy {
+public interface RetryPolicy extends Serializable {
     /**
      * Returns the maximum number of attempts including the first attempt.
      *

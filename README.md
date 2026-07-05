@@ -19,7 +19,8 @@ The default profile uses safe local settings. PostgreSQL details can be supplied
 - Bounded worker execution with timeouts, cancellation, per-job overlap locks, and retry strategies.
 - Async event bus with console, SLF4J, and metrics listeners.
 - JDBC repositories with dynamic filtering and pagination support.
-- Thin CLI and embedded JDK `HttpServer` JSON status API.
+- Thin CLI, repository-backed history output, and embedded JDK `HttpServer` JSON status API.
+- Java serialization and hand-written JSON workflow checkpoints.
 - Documentation in `docs/` plus running decision and changelog files.
 
 ## Progress

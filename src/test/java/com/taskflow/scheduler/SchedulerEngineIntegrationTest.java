@@ -10,6 +10,7 @@ import com.taskflow.core.WorkflowId;
 import com.taskflow.core.WorkflowRun;
 import com.taskflow.events.EventBus;
 import com.taskflow.scheduler.retry.FixedDelayRetryPolicy;
+import com.taskflow.testsupport.InMemoryJobRunRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -105,6 +106,25 @@ class SchedulerEngineIntegrationTest {
 
             assertEquals(JobStatus.FAILED, run.status());
             assertEquals(0, downstreamRuns.get());
+        }
+    }
+
+    @Test
+    void persistsFinalJobRunsWhenRepositoryConfigured() {
+        InMemoryJobRunRepository repository = new InMemoryJobRunRepository();
+        JobDefinition job = JobDefinition.builder(JobId.of("persisted"), "persisted", ctx -> JobResult.success("ok"))
+                .timeout(Duration.ofSeconds(2))
+                .build();
+        Workflow workflow = Workflow.builder(WorkflowId.of("wf"), "WF").addJob(job).build();
+
+        try (EventBus bus = new EventBus();
+             JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
+             SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC(), repository)) {
+            WorkflowRun run = engine.submitRun(workflow);
+
+            assertEquals(JobStatus.SUCCEEDED, run.status());
+            assertEquals(1, repository.findAll().size());
+            assertEquals(JobStatus.SUCCEEDED, repository.findAll().get(0).status());
         }
     }
 }

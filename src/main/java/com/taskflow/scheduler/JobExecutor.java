@@ -191,7 +191,19 @@ public final class JobExecutor implements AutoCloseable {
 
     @Override
     public void close() {
-        workers.shutdownNow();
-        timers.shutdownNow();
+        workers.shutdown();
+        timers.shutdown();
+        try {
+            if (!workers.awaitTermination(5, TimeUnit.SECONDS)) {
+                workers.shutdownNow();
+            }
+            if (!timers.awaitTermination(5, TimeUnit.SECONDS)) {
+                timers.shutdownNow();
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            workers.shutdownNow();
+            timers.shutdownNow();
+        }
     }
 }

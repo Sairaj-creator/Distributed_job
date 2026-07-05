@@ -15,3 +15,7 @@ The implementation intentionally keeps Spring, ORM tools, CLI parsers, cron libr
 ## 2026-07-05 - H2-compatible migration syntax
 
 The schema is written in portable SQL that works against H2 for tests and remains straightforward to adapt to PostgreSQL. PostgreSQL-specific `BIGSERIAL` and `TIMESTAMPTZ` are represented with identity columns and timestamp fields in the checked-in migration so CI/local testing has no external database requirement.
+
+## 2026-07-05 - Persist final job attempts from the scheduler boundary
+
+`JobExecutor` remains focused on executing one job and returning the final `JobRun`; `SchedulerEngine` optionally persists that run when a `JobRunRepository` is configured. This keeps execution testable without a database while satisfying the persistence requirement in the production wiring.

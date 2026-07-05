@@ -28,10 +28,26 @@ public final class ConfigService {
     }
 
     public Optional<String> getOptional(String key) {
-        String envKey = key.toUpperCase(Locale.ROOT).replace('.', '_');
+        String envKey = toEnvKey(key);
         return env(envKey)
                 .or(() -> Optional.ofNullable(profile.getProperty(key)).map(this::resolvePlaceholder))
                 .or(() -> Optional.ofNullable(defaults.getProperty(key)).map(this::resolvePlaceholder));
+    }
+
+    private String toEnvKey(String key) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < key.length(); i++) {
+            char current = key.charAt(i);
+            if (current == '.') {
+                builder.append('_');
+            } else {
+                if (Character.isUpperCase(current) && i > 0 && key.charAt(i - 1) != '.') {
+                    builder.append('_');
+                }
+                builder.append(Character.toUpperCase(current));
+            }
+        }
+        return builder.toString();
     }
 
     private Optional<String> env(String key) {
