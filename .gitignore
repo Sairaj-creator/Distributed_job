@@ -7,3 +7,12 @@ target/
 *.log
 logs/
 out/
+
+# AI Assistant & IDE Settings
+.agents/
+.cursor/
+.jetro/
+.windsurfrules
+AGENT.md
+CLAUDE.md
+.mcp.json

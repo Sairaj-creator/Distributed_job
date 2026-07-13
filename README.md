@@ -1,46 +1,70 @@
-# TaskFlow
+<div align="center">
+  <h1>🚀 TaskFlow</h1>
+  <p><strong>A production-styled, high-performance Java 17 Workflow Orchestration Engine.</strong></p>
+  
+  [![Java 17](https://img.shields.io/badge/Java-17-orange.svg)](https://www.oracle.com/java/)
+  [![Maven](https://img.shields.io/badge/build-Maven-blue.svg)](https://maven.apache.org/)
+  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+</div>
 
-TaskFlow is a production-styled Java 17 workflow orchestration engine. It can define workflows as DAGs, validate dependency graphs, compute parallel execution levels, run jobs on bounded worker pools, apply retry policies, publish lifecycle events, persist run history with JDBC, and expose CLI/HTTP status surfaces without Spring or an ORM.
+<br/>
 
-## Quick Start
+**TaskFlow** is a robust backend orchestration engine built in core Java. It allows you to define complex background workflows as Directed Acyclic Graphs (DAGs), validate dependencies, compute parallel execution levels, and run jobs on bounded worker pools.
+
+Say goodbye to manual chron jobs and complex orchestrators! TaskFlow brings retry policies, lifecycle events, JDBC persistence, and a built-in CLI/HTTP API—all without the bloat of Spring or massive ORMs.
+
+## ✨ Key Features
+
+- 🏗️ **Immutable Domain Model:** Built with `Job`, `Workflow`, `JobRun`, and behavior-rich value objects.
+- 🔗 **Advanced DAG Validation:** Iterative DFS and topological sorting via Kahn's algorithm.
+- 🕒 **Smart Scheduling:** Simplified 5-field cron parser and next-fire calculation.
+- ⚡ **High Concurrency:** Bounded worker execution pools with timeouts, cancellation, overlap locks, and priority queues.
+- 📡 **Event-Driven Architecture:** Async event bus with console, SLF4J, and metrics listeners.
+- 💾 **JDBC Persistence:** Highly optimized database interactions with dynamic filtering & pagination.
+- 🛠️ **CLI & HTTP API:** Embedded JDK `HttpServer` and command-line interfaces for easy interaction.
+
+## 🚀 Quick Start
+
+Ensure you have **Java 17** and **Maven** installed, then clone the repository:
 
 ```bash
+git clone https://github.com/Sairaj-creator/Distributed_job.git
+cd Distributed_job
+```
+
+### 1. Configure the Environment
+Copy the example environment file and update the PostgreSQL connection details if necessary:
+```bash
+cp .env.example .env
+```
+*(Note: By default, the engine connects to a local PostgreSQL instance.)*
+
+### 2. Build & Test
+```bash
 mvn clean verify
+```
+
+### 3. Run the Engine
+To start the background engine and the HTTP API:
+```bash
 mvn -q exec:java
 ```
 
-The default profile uses safe local settings. PostgreSQL details can be supplied through environment variables shown in `.env.example`; tests use H2.
+Once running, the HTTP API listens on `http://localhost:8080/status`. You can also use CLI arguments in a separate terminal to view statistics:
+```bash
+mvn -q exec:java -Dexec.args="stats"
+```
 
-## Features
+## 🏗️ Architecture
+TaskFlow is designed to be completely framework-agnostic. Check out our detailed [Architecture Guide](ARCHITECTURE.md) for sequence diagrams and design decisions.
 
-- Immutable core domain model with `Job`, `Workflow`, `JobRun`, value-object identifiers, and behavior-rich enums.
-- DAG validation with iterative DFS and topological sorting with Kahn's algorithm.
-- Simplified 5-field cron parser and next-fire calculator.
-- Bounded worker execution with timeouts, cancellation, per-job overlap locks, and retry strategies.
-- Async event bus with console, SLF4J, and metrics listeners.
-- JDBC repositories with dynamic filtering and pagination support.
-- Thin CLI, repository-backed history output, and embedded JDK `HttpServer` JSON status API.
-- Java serialization and hand-written JSON workflow checkpoints.
-- Documentation in `docs/` plus running decision and changelog files.
+## 📜 Progress Roadmap
+- [x] Phase 0-4: Domain models, DAG algorithms, Cron parsing, Concurrency
+- [x] Phase 5-8: Event bus, JDBC, Service layers, CLI & HTTP API
+- [x] Phase 9-10: Config, bootstrap wiring, tests & documentation
 
-## Progress
+## 🤝 Contributing
+Contributions are always welcome! Feel free to open an issue or submit a pull request.
 
-- [x] Phase 0: Project bootstrap
-- [x] Phase 1: Domain model and core enums
-- [x] Phase 2: DAG algorithms
-- [x] Phase 3: Cron parsing and scheduling primitives
-- [x] Phase 4: Concurrency core, scheduler engine, retry, priority
-- [x] Phase 5: Event bus and listeners
-- [x] Phase 6: JDBC persistence layer
-- [x] Phase 7: Service layer and reporting
-- [x] Phase 8: CLI and embedded HTTP API
-- [x] Phase 9: Config, logging, bootstrap wiring
-- [x] Phase 10: Testing, coverage, and documentation polish
-
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) and the diagrams in [docs/](docs/).
-
-## License
-
-MIT.
+## 📄 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

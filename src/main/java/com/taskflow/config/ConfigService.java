@@ -14,10 +14,28 @@ public final class ConfigService {
     private final Properties profile = new Properties();
 
     public ConfigService() {
+        loadEnvFile();
         load(defaults, "application.properties");
         String activeProfile = env("TASKFLOW_PROFILE").orElse(defaults.getProperty("taskflow.profile", "dev"));
         load(profile, "application-" + activeProfile + ".properties");
     }
+
+    private void loadEnvFile() {
+        try {
+            java.nio.file.Path envPath = java.nio.file.Paths.get(".env");
+            if (java.nio.file.Files.exists(envPath)) {
+                java.nio.file.Files.readAllLines(envPath).forEach(line -> {
+                    if (line.contains("=") && !line.trim().startsWith("#")) {
+                        String[] parts = line.split("=", 2);
+                        System.setProperty(parts[0].trim(), parts[1].trim());
+                    }
+                });
+            }
+        } catch (java.io.IOException e) {
+            // ignore
+        }
+    }
+
 
     public String get(String key) {
         return getOptional(key).orElseThrow(() -> new IllegalArgumentException("missing config key " + key));
@@ -51,7 +69,9 @@ public final class ConfigService {
     }
 
     private Optional<String> env(String key) {
-        return Optional.ofNullable(System.getenv(key)).filter(value -> !value.isBlank());
+        return Optional.ofNullable(System.getProperty(key))
+                .or(() -> Optional.ofNullable(System.getenv(key)))
+                .filter(value -> !value.isBlank());
     }
 
     private String resolvePlaceholder(String value) {
