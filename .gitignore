@@ -16,3 +16,10 @@ out/
 AGENT.md
 CLAUDE.md
 .mcp.json
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+
+# Compiled class files
+*.class

@@ -112,8 +112,15 @@ public final class JdbcWorkflowRepository implements WorkflowRepository {
 
     private void upsertWorkflow(Connection connection, Workflow workflow) throws SQLException {
         String sql = """
-                MERGE INTO workflows(workflow_id, name, description, schedule_type, schedule_spec, overlap_policy, is_paused)
-                KEY(workflow_id) VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO workflows(workflow_id, name, description, schedule_type, schedule_spec, overlap_policy, is_paused)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (workflow_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    schedule_type = EXCLUDED.schedule_type,
+                    schedule_spec = EXCLUDED.schedule_spec,
+                    overlap_policy = EXCLUDED.overlap_policy,
+                    is_paused = EXCLUDED.is_paused
                 """;
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, workflow.id().value());

@@ -1,70 +1,78 @@
-<div align="center">
-  <h1>🚀 TaskFlow</h1>
-  <p><strong>A production-styled, high-performance Java 17 Workflow Orchestration Engine.</strong></p>
-  
-  [![Java 17](https://img.shields.io/badge/Java-17-orange.svg)](https://www.oracle.com/java/)
-  [![Maven](https://img.shields.io/badge/build-Maven-blue.svg)](https://maven.apache.org/)
-  [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-</div>
+# 🌊 TaskFlow
 
-<br/>
+> **A lightweight, embedded Java workflow orchestration engine with a modern React dashboard.**
 
-**TaskFlow** is a robust backend orchestration engine built in core Java. It allows you to define complex background workflows as Directed Acyclic Graphs (DAGs), validate dependencies, compute parallel execution levels, and run jobs on bounded worker pools.
+TaskFlow is a robust distributed job scheduling and workflow orchestration engine designed to run seamlessly inside your Java applications. With native PostgreSQL support, bulletproof concurrency locks, and an elegant real-time UI, TaskFlow manages complex DAG (Directed Acyclic Graph) job dependencies so you can focus on writing business logic.
 
-Say goodbye to manual chron jobs and complex orchestrators! TaskFlow brings retry policies, lifecycle events, JDBC persistence, and a built-in CLI/HTTP API—all without the bloat of Spring or massive ORMs.
+---
 
-## ✨ Key Features
+## ✨ Features
 
-- 🏗️ **Immutable Domain Model:** Built with `Job`, `Workflow`, `JobRun`, and behavior-rich value objects.
-- 🔗 **Advanced DAG Validation:** Iterative DFS and topological sorting via Kahn's algorithm.
-- 🕒 **Smart Scheduling:** Simplified 5-field cron parser and next-fire calculation.
-- ⚡ **High Concurrency:** Bounded worker execution pools with timeouts, cancellation, overlap locks, and priority queues.
-- 📡 **Event-Driven Architecture:** Async event bus with console, SLF4J, and metrics listeners.
-- 💾 **JDBC Persistence:** Highly optimized database interactions with dynamic filtering & pagination.
-- 🛠️ **CLI & HTTP API:** Embedded JDK `HttpServer` and command-line interfaces for easy interaction.
+- **Embedded Engine**: Runs directly within your Java application footprint without requiring heavy external orchestrators.
+- **DAG Resolution**: Define complex workflows using Directed Acyclic Graphs, and TaskFlow will automatically resolve dependency chains.
+- **Robust Persistence**: Safely orchestrate distributed environments using PostgreSQL `ON CONFLICT` semantics to avoid race conditions.
+- **Resilient Execution**: Gracefully handles retries, configurable timeouts, and overlap policies (`SKIP`, `ENQUEUE`, `REPLACE`).
+- **Modern Dashboard**: A real-time, glassmorphic React dashboard (Vite) that beautifully visualizes your active workflows, dependency chains, and KPI metrics.
+
+---
 
 ## 🚀 Quick Start
 
-Ensure you have **Java 17** and **Maven** installed, then clone the repository:
+### 1. Start the Engine (Backend)
+
+By default, the backend will initialize the database schema and seed a demo `Nightly Analytics` workflow. It runs locally on port `8081`.
 
 ```bash
-git clone https://github.com/Sairaj-creator/Distributed_job.git
-cd Distributed_job
+# Compile and start the embedded server
+mvn clean compile exec:java
 ```
 
-### 1. Configure the Environment
-Copy the example environment file and update the PostgreSQL connection details if necessary:
-```bash
-cp .env.example .env
-```
-*(Note: By default, the engine connects to a local PostgreSQL instance.)*
+### 2. Start the Dashboard (Frontend)
 
-### 2. Build & Test
-```bash
-mvn clean verify
-```
+The frontend is built with React and Vite. It connects to the backend API to provide a live view of your pipelines.
 
-### 3. Run the Engine
-To start the background engine and the HTTP API:
 ```bash
-mvn -q exec:java
+# Navigate to the frontend directory
+cd frontend
+
+# Install dependencies and run the dev server
+npm install
+npm run dev
 ```
 
-Once running, the HTTP API listens on `http://localhost:8080/status`. You can also use CLI arguments in a separate terminal to view statistics:
-```bash
-mvn -q exec:java -Dexec.args="stats"
-```
+The dashboard will be available at [http://localhost:5173](http://localhost:5173).
+
+---
 
 ## 🏗️ Architecture
-TaskFlow is designed to be completely framework-agnostic. Check out our detailed [Architecture Guide](ARCHITECTURE.md) for sequence diagrams and design decisions.
 
-## 📜 Progress Roadmap
-- [x] Phase 0-4: Domain models, DAG algorithms, Cron parsing, Concurrency
-- [x] Phase 5-8: Event bus, JDBC, Service layers, CLI & HTTP API
-- [x] Phase 9-10: Config, bootstrap wiring, tests & documentation
+### Java Core Engine
+At its heart, TaskFlow leverages an embedded `HttpServer` and `HikariCP` connection pooling.
+- **`StatusHttpApi`**: Exposes `/status` and `/workflows/{id}` endpoints for the frontend.
+- **`DemoSeeder`**: Seeds a perfect 5-step linear pipeline demonstrating real-time statuses and DAG evaluation.
+- **`JdbcWorkflowRepository`**: Handles robust state management against a real database using standard SQL patterns.
 
-## 🤝 Contributing
-Contributions are always welcome! Feel free to open an issue or submit a pull request.
+### React Dashboard
+The frontend relies on standard modern web tooling.
+- **Framework**: Vite + React
+- **Styling**: Pure CSS with glassmorphic elements, modern gradients, and dynamic status-aware UI components.
+- **Lucide Icons**: Clean, scalable vector graphics.
 
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+---
+
+## 🎨 Visualization
+
+TaskFlow elegantly renders workflows using color-coded nodes:
+- 🔵 **RUNNING**: The job is currently executing.
+- 🟢 **SUCCEEDED**: The job finished successfully.
+- 🔴 **FAILED**: The job encountered an error.
+- 🟠 **NO_RUNS / SCHEDULED**: The job is waiting in the queue.
+
+---
+
+## 🛠️ Configuration
+
+Configure your environment easily by dropping a `.env` file in the root:
+```env
+TASKFLOW_HTTP_PORT=8081
+```

@@ -21,10 +21,11 @@ class StatusHttpApiTest {
     void servesStatusAndWorkflowDetail() throws Exception {
         InMemoryWorkflowRepository repository = new InMemoryWorkflowRepository();
         WorkflowService service = new WorkflowService(repository, new DagValidator());
+        com.taskflow.service.ReportService reportService = new com.taskflow.service.ReportService(new com.taskflow.testsupport.InMemoryJobRunRepository());
         service.register(WorkflowFixtures.diamondWorkflow());
         int port = freePort();
 
-        try (StatusHttpApi api = new StatusHttpApi(service, port)) {
+        try (StatusHttpApi api = new StatusHttpApi(service, reportService, port)) {
             api.start();
             HttpClient client = HttpClient.newHttpClient();
 
@@ -36,9 +37,9 @@ class StatusHttpApiTest {
                     HttpResponse.BodyHandlers.ofString());
 
             assertEquals(200, status.statusCode());
-            assertTrue(status.body().contains("\"workflowId\":\"etl\""));
+            assertTrue(status.body().contains("\"totalWorkflows\":1"));
             assertEquals(200, detail.statusCode());
-            assertTrue(detail.body().contains("\"jobCount\":4"));
+            assertTrue(detail.body().contains("\"jobs\":["));
         }
     }
 

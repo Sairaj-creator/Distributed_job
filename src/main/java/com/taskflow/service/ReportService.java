@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -87,5 +88,12 @@ public final class ReportService {
                 total == 0 ? 0.0 : (double) succeeded / total,
                 Duration.ofMillis((long) stats.getAverage()),
                 Duration.ofMillis(p95));
+    }
+    public long countByStatus(JobStatus status) {
+        return jobRunRepository.findRuns(RunQuery.builder().status(status).build(), Page.first(10_000)).items().size();
+    }
+
+    public Optional<JobRun> latestRun(JobId jobId) {
+        return jobRunRepository.findRuns(RunQuery.builder().jobId(jobId).build(), Page.first(1)).items().stream().findFirst();
     }
 }
