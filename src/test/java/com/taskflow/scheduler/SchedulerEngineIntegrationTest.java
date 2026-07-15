@@ -161,4 +161,42 @@ class SchedulerEngineIntegrationTest {
             }
         }
     }
+    @Test
+    void executesWorkflowsWithWideFanOutConcurrently() {
+        int numWorkflows = 50; // 50 workflows, 12 jobs each = 600 total jobs
+        java.util.List<Workflow> workflows = new java.util.ArrayList<>();
+        
+        for (int i = 0; i < numWorkflows; i++) {
+            Workflow.Builder wfBuilder = Workflow.builder(WorkflowId.of("fanout-" + i), "Fanout WF " + i);
+            
+            JobId start = JobId.of("start");
+            wfBuilder.addJob(JobDefinition.builder(start, "start", ctx -> JobResult.success("ok")).build());
+            
+            JobId end = JobId.of("end");
+            wfBuilder.addJob(JobDefinition.builder(end, "end", ctx -> JobResult.success("ok")).build());
+            
+            for (int j = 0; j < 10; j++) {
+                JobId branch = JobId.of("branch-" + j);
+                wfBuilder.addJob(JobDefinition.builder(branch, "branch " + j, ctx -> JobResult.success("ok")).build());
+                wfBuilder.dependsOn(branch, start);
+                wfBuilder.dependsOn(end, branch);
+            }
+            workflows.add(wfBuilder.build());
+        }
+
+        try (EventBus bus = new EventBus();
+             JobExecutor executor = new JobExecutor(8, bus, new JobLockRegistry(), Clock.systemUTC());
+             SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
+            
+            java.util.List<java.util.concurrent.CompletableFuture<WorkflowRun>> futures = new java.util.ArrayList<>();
+            for (Workflow workflow : workflows) {
+                futures.add(engine.submitRunAsync(workflow));
+            }
+
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+            for (java.util.concurrent.CompletableFuture<WorkflowRun> future : futures) {
+                assertEquals(JobStatus.SUCCEEDED, future.join().status());
+            }
+        }
+    }
 }
