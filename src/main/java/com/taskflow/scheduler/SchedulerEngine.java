@@ -89,13 +89,17 @@ public final class SchedulerEngine implements AutoCloseable {
             );
         }
 
-        return CompletableFuture.supplyAsync(() -> submitRun(workflow)).whenComplete((run, ex) -> {
+        return executeDagAsync(workflow).whenComplete((run, ex) -> {
             activeWorkflows.remove(workflow.id());
         });
     }
 
-    private WorkflowRun submitRun(Workflow workflow) {
-        dagValidator.validate(workflow);
+    private CompletableFuture<WorkflowRun> executeDagAsync(Workflow workflow) {
+        try {
+            dagValidator.validate(workflow);
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
         List<List<JobId>> levels = topoCache.get(workflow.id().value())
                 .orElseGet(() -> {
                     List<List<JobId>> sorted = topologicalSorter.sort(workflow);
@@ -104,31 +108,43 @@ public final class SchedulerEngine implements AutoCloseable {
                 });
         long workflowRunId = nextRunId();
         Instant started = clock.instant();
-        JobStatus finalStatus = JobStatus.SUCCEEDED;
+
+        CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
+        java.util.concurrent.atomic.AtomicReference<JobStatus> finalStatusRef = new java.util.concurrent.atomic.AtomicReference<>(JobStatus.SUCCEEDED);
 
         for (List<JobId> level : levels) {
-            List<JobDefinition> ready = new ArrayList<>();
-            for (JobId jobId : level) {
-                workflow.findJob(jobId).ifPresent(ready::add);
-            }
-            Comparator<JobDefinition> comparator = priorityStrategy.comparator(workflow);
-            ready.sort(comparator);
-            List<CompletableFuture<JobRun>> futures = ready.stream()
-                    .map(job -> jobExecutor.executeWithRetry(workflow, job, workflowRunId).thenApply(this::persistRun))
-                    .toList();
-            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
-            boolean failed = futures.stream()
-                    .map(CompletableFuture::join)
-                    .map(JobRun::status)
-                    .anyMatch(status -> status == JobStatus.FAILED
-                            || status == JobStatus.TIMED_OUT
-                            || status == JobStatus.CANCELLED);
-            if (failed) {
-                finalStatus = JobStatus.FAILED;
-                break;
-            }
+            chain = chain.thenCompose(ignored -> {
+                if (finalStatusRef.get() != JobStatus.SUCCEEDED) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                
+                List<JobDefinition> ready = new ArrayList<>();
+                for (JobId jobId : level) {
+                    workflow.findJob(jobId).ifPresent(ready::add);
+                }
+                Comparator<JobDefinition> comparator = priorityStrategy.comparator(workflow);
+                ready.sort(comparator);
+                List<CompletableFuture<JobRun>> futures = ready.stream()
+                        .map(job -> jobExecutor.executeWithRetry(workflow, job, workflowRunId).thenApply(this::persistRun))
+                        .toList();
+                        
+                return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).thenAccept(v -> {
+                    boolean failed = futures.stream()
+                            .map(CompletableFuture::join)
+                            .map(JobRun::status)
+                            .anyMatch(status -> status == JobStatus.FAILED
+                                    || status == JobStatus.TIMED_OUT
+                                    || status == JobStatus.CANCELLED);
+                    if (failed) {
+                        finalStatusRef.set(JobStatus.FAILED);
+                    }
+                });
+            });
         }
-        return new WorkflowRun(workflowRunId, workflow.id(), "MANUAL", finalStatus, started, clock.instant());
+        
+        return chain.thenApply(ignored -> 
+            new WorkflowRun(workflowRunId, workflow.id(), "MANUAL", finalStatusRef.get(), started, clock.instant())
+        );
     }
 
     private long nextRunId() {

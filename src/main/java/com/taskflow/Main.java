@@ -48,7 +48,7 @@ public final class Main {
             System.exit(0);
         } else {
             // Start HTTP Server and engine
-            int port = configService.getInt("taskflow.http.port", 8081);
+            int port = configService.getInt("taskflow.httpPort", 8081);
             StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), port);
             httpApi.start();
             

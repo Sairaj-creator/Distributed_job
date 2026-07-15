@@ -34,7 +34,7 @@ function Dashboard({ onSelectWorkflow }) {
     return (
       <div className="glass-card animate-fade-in" style={{ borderColor: 'var(--status-error)' }}>
         <h2 style={{ color: 'var(--status-error)', marginBottom: '0.5rem' }}>Connection Error</h2>
-        <p className="text-muted">Ensure the TaskFlow engine is running on port 8080. ({error})</p>
+        <p className="text-muted">Ensure the TaskFlow engine is running on port 8081. ({error})</p>
       </div>
     );
   }
