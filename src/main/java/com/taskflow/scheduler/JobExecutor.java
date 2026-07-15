@@ -49,6 +49,10 @@ public final class JobExecutor implements AutoCloseable {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    public ExecutorService getWorkers() {
+        return workers;
+    }
+
     /**
      * Executes a job and all configured retries asynchronously.
      *

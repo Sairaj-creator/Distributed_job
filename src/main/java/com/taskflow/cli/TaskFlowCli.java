@@ -42,7 +42,7 @@ public final class TaskFlowCli {
         return switch (command.name()) {
             case "list-workflows" -> workflowService.listStatuses().toString();
             case "show-workflow" -> workflowService.status(WorkflowId.of(required(command, 0))).map(Object::toString).orElse("not found");
-            case "trigger" -> schedulingService.triggerNow(WorkflowId.of(required(command, 0))).toString();
+            case "trigger" -> schedulingService.triggerNowAsync(WorkflowId.of(required(command, 0))).join().toString();
             case "pause" -> workflowService.pause(WorkflowId.of(required(command, 0))).id() + " paused";
             case "resume" -> workflowService.resume(WorkflowId.of(required(command, 0))).id() + " resumed";
             case "history" -> history(command);

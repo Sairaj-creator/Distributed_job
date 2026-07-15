@@ -21,7 +21,9 @@ class JdbcJobRunRepositoryTest {
             Workflow workflow = Workflow.builder(WorkflowId.of("wf"), "WF")
                     .addJob(WorkflowFixtures.job("job"))
                     .build();
-            new JdbcWorkflowRepository(connectionManager).save(workflow);
+            com.taskflow.core.JobRegistry registry = new com.taskflow.core.JobRegistry();
+            JdbcWorkflowRepository workflowRepository = new JdbcWorkflowRepository(connectionManager, registry);
+            workflowRepository.save(workflow);
             JdbcJobRunRepository repository = new JdbcJobRunRepository(connectionManager);
 
             Instant base = Instant.parse("2026-07-05T00:00:00Z");

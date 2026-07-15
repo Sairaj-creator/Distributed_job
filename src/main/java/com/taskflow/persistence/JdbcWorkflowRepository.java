@@ -18,14 +18,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.taskflow.core.JobRegistry;
+
 /**
  * JDBC implementation for workflow definitions.
  */
 public final class JdbcWorkflowRepository implements WorkflowRepository {
     private final ConnectionManager connectionManager;
+    private final JobRegistry jobRegistry;
 
-    public JdbcWorkflowRepository(ConnectionManager connectionManager) {
+    public JdbcWorkflowRepository(ConnectionManager connectionManager, JobRegistry jobRegistry) {
         this.connectionManager = connectionManager;
+        this.jobRegistry = jobRegistry;
     }
 
     @Override
@@ -60,8 +64,12 @@ public final class JdbcWorkflowRepository implements WorkflowRepository {
             try (ResultSet rs = statement.executeQuery()) {
                 while (rs.next()) {
                     JobId jobId = JobId.of(rs.getString("job_id"));
-                    builder.addJob(JobDefinition.builder(jobId, rs.getString("name"), ctx -> JobResult.success("metadata-only job"))
-                            .jobClassName(rs.getString("job_class"))
+                    String jobClass = rs.getString("job_class");
+                    com.taskflow.api.Job jobLogic = jobRegistry.getJob(jobClass)
+                            .orElse(ctx -> JobResult.success("Fallback no-op for " + jobClass));
+                            
+                    builder.addJob(JobDefinition.builder(jobId, rs.getString("name"), jobLogic)
+                            .jobClassName(jobClass)
                             .timeout(Duration.ofSeconds(rs.getInt("timeout_seconds")))
                             .build());
                 }
@@ -111,26 +119,41 @@ public final class JdbcWorkflowRepository implements WorkflowRepository {
     }
 
     private void upsertWorkflow(Connection connection, Workflow workflow) throws SQLException {
-        String sql = """
-                INSERT INTO workflows(workflow_id, name, description, schedule_type, schedule_spec, overlap_policy, is_paused)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (workflow_id) DO UPDATE SET
-                    name = EXCLUDED.name,
-                    description = EXCLUDED.description,
-                    schedule_type = EXCLUDED.schedule_type,
-                    schedule_spec = EXCLUDED.schedule_spec,
-                    overlap_policy = EXCLUDED.overlap_policy,
-                    is_paused = EXCLUDED.is_paused
+        String updateSql = """
+                UPDATE workflows SET
+                    name = ?,
+                    description = ?,
+                    schedule_type = ?,
+                    schedule_spec = ?,
+                    overlap_policy = ?,
+                    is_paused = ?
+                WHERE workflow_id = ?
                 """;
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, workflow.id().value());
-            statement.setString(2, workflow.name());
-            statement.setString(3, workflow.description());
-            statement.setString(4, workflow.scheduleType().name());
-            statement.setString(5, workflow.scheduleSpec());
-            statement.setString(6, workflow.overlapPolicy().name());
-            statement.setBoolean(7, workflow.isPaused());
-            statement.executeUpdate();
+        try (PreparedStatement update = connection.prepareStatement(updateSql)) {
+            update.setString(1, workflow.name());
+            update.setString(2, workflow.description());
+            update.setString(3, workflow.scheduleType().name());
+            update.setString(4, workflow.scheduleSpec());
+            update.setString(5, workflow.overlapPolicy().name());
+            update.setBoolean(6, workflow.isPaused());
+            update.setString(7, workflow.id().value());
+            
+            if (update.executeUpdate() == 0) {
+                String insertSql = """
+                        INSERT INTO workflows(workflow_id, name, description, schedule_type, schedule_spec, overlap_policy, is_paused)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """;
+                try (PreparedStatement insert = connection.prepareStatement(insertSql)) {
+                    insert.setString(1, workflow.id().value());
+                    insert.setString(2, workflow.name());
+                    insert.setString(3, workflow.description());
+                    insert.setString(4, workflow.scheduleType().name());
+                    insert.setString(5, workflow.scheduleSpec());
+                    insert.setString(6, workflow.overlapPolicy().name());
+                    insert.setBoolean(7, workflow.isPaused());
+                    insert.executeUpdate();
+                }
+            }
         }
     }
 

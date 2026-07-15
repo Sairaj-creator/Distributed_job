@@ -41,11 +41,14 @@ public final class AppContext implements AutoCloseable {
         this.workflowService = new WorkflowService(workflowRepository, new DagValidator());
         this.schedulingService = new SchedulingService(workflowService, schedulerEngine);
         this.reportService = new ReportService(jobRunRepository);
+        this.schedulingDaemon = new com.taskflow.scheduler.SchedulingDaemon(workflowService, schedulingService, Clock.systemUTC());
+        this.schedulingDaemon.start();
     }
 
     private final WorkflowService workflowService;
     private final SchedulingService schedulingService;
     private final ReportService reportService;
+    private final com.taskflow.scheduler.SchedulingDaemon schedulingDaemon;
     private final WorkflowCheckpointService workflowCheckpointService = new WorkflowCheckpointService();
 
     public WorkflowService workflowService() {
@@ -70,6 +73,7 @@ public final class AppContext implements AutoCloseable {
 
     @Override
     public void close() {
+        schedulingDaemon.close();
         schedulerEngine.close();
         eventBus.close();
     }

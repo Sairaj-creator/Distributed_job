@@ -13,7 +13,8 @@ class JdbcWorkflowRepositoryTest {
     @Test
     void savesAndLoadsWorkflowWithScopedDependencies() {
         try (ConnectionManager connectionManager = DatabaseTestSupport.migratedConnectionManager()) {
-            JdbcWorkflowRepository repository = new JdbcWorkflowRepository(connectionManager);
+            com.taskflow.core.JobRegistry registry = new com.taskflow.core.JobRegistry();
+            JdbcWorkflowRepository repository = new JdbcWorkflowRepository(connectionManager, registry);
             Workflow first = WorkflowFixtures.diamondWorkflow();
             Workflow second = Workflow.builder(WorkflowId.of("solo"), "Solo")
                     .addJob(WorkflowFixtures.job("only"))

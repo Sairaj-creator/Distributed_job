@@ -15,6 +15,7 @@ import java.net.http.HttpResponse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.*;
 
 class StatusHttpApiTest {
     @Test
@@ -22,10 +23,11 @@ class StatusHttpApiTest {
         InMemoryWorkflowRepository repository = new InMemoryWorkflowRepository();
         WorkflowService service = new WorkflowService(repository, new DagValidator());
         com.taskflow.service.ReportService reportService = new com.taskflow.service.ReportService(new com.taskflow.testsupport.InMemoryJobRunRepository());
+        com.taskflow.service.SchedulingService schedulingService = mock(com.taskflow.service.SchedulingService.class);
         service.register(WorkflowFixtures.diamondWorkflow());
         int port = freePort();
 
-        try (StatusHttpApi api = new StatusHttpApi(service, reportService, port)) {
+        try (StatusHttpApi api = new StatusHttpApi(service, schedulingService, reportService, port)) {
             api.start();
             HttpClient client = HttpClient.newHttpClient();
 

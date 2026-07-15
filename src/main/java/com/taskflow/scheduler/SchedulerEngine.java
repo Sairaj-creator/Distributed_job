@@ -7,6 +7,7 @@ import com.taskflow.core.JobId;
 import com.taskflow.core.JobRun;
 import com.taskflow.core.JobStatus;
 import com.taskflow.core.Workflow;
+import com.taskflow.core.WorkflowId;
 import com.taskflow.core.WorkflowRun;
 import com.taskflow.exception.SchedulerShutdownException;
 import com.taskflow.persistence.JobRunRepository;
@@ -19,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,6 +37,7 @@ public final class SchedulerEngine implements AutoCloseable {
     private final Clock clock;
     private final AtomicLong workflowRunIds = new AtomicLong(1);
     private final AtomicBoolean acceptingWork = new AtomicBoolean(true);
+    private final ConcurrentHashMap<WorkflowId, Boolean> activeWorkflows = new ConcurrentHashMap<>();
 
     public SchedulerEngine(JobExecutor jobExecutor, Clock clock) {
         this(jobExecutor, clock, null);
@@ -63,18 +66,35 @@ public final class SchedulerEngine implements AutoCloseable {
     }
 
     /**
-     * Executes a workflow immediately.
+     * Executes a workflow asynchronously.
      *
      * @param workflow workflow definition
-     * @return completed workflow run
+     * @return future completed workflow run
      */
-    public WorkflowRun submitRun(Workflow workflow) {
+    public CompletableFuture<WorkflowRun> submitRunAsync(Workflow workflow) {
         if (!acceptingWork.get()) {
             throw new SchedulerShutdownException("scheduler is shutting down");
         }
         if (workflow.isPaused()) {
-            return new WorkflowRun(nextRunId(), workflow.id(), "MANUAL", JobStatus.SKIPPED, clock.instant(), clock.instant());
+            return CompletableFuture.completedFuture(
+                    new WorkflowRun(nextRunId(), workflow.id(), "MANUAL", JobStatus.SKIPPED, clock.instant(), clock.instant())
+            );
         }
+
+        // Overlap Guard
+        if (activeWorkflows.putIfAbsent(workflow.id(), true) != null) {
+            // Already active. Implement SKIP policy.
+            return CompletableFuture.completedFuture(
+                    new WorkflowRun(nextRunId(), workflow.id(), "MANUAL", JobStatus.SKIPPED, clock.instant(), clock.instant())
+            );
+        }
+
+        return CompletableFuture.supplyAsync(() -> submitRun(workflow)).whenComplete((run, ex) -> {
+            activeWorkflows.remove(workflow.id());
+        });
+    }
+
+    private WorkflowRun submitRun(Workflow workflow) {
         dagValidator.validate(workflow);
         List<List<JobId>> levels = topoCache.get(workflow.id().value())
                 .orElseGet(() -> {

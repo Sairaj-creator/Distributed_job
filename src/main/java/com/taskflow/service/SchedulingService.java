@@ -16,8 +16,8 @@ public final class SchedulingService {
         this.schedulerEngine = schedulerEngine;
     }
 
-    public WorkflowRun triggerNow(WorkflowId workflowId) {
-        return schedulerEngine.submitRun(workflowService.find(workflowId)
+    public java.util.concurrent.CompletableFuture<WorkflowRun> triggerNowAsync(WorkflowId workflowId) {
+        return schedulerEngine.submitRunAsync(workflowService.find(workflowId)
                 .orElseThrow(() -> new IllegalArgumentException("unknown workflow " + workflowId)));
     }
 }

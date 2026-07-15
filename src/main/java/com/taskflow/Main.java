@@ -22,10 +22,11 @@ public final class Main {
 
         ConfigService configService = new ConfigService();
         ConnectionManager connectionManager = new ConnectionManager(configService);
-        JdbcWorkflowRepository workflowRepository = new JdbcWorkflowRepository(connectionManager);
+        com.taskflow.core.JobRegistry jobRegistry = new com.taskflow.core.JobRegistry();
+        JdbcWorkflowRepository workflowRepository = new JdbcWorkflowRepository(connectionManager, jobRegistry);
         JdbcJobRunRepository jobRunRepository = new JdbcJobRunRepository(connectionManager);
         
-        com.taskflow.config.DemoSeeder seeder = new com.taskflow.config.DemoSeeder(connectionManager, workflowRepository, jobRunRepository);
+        com.taskflow.config.DemoSeeder seeder = new com.taskflow.config.DemoSeeder(connectionManager, workflowRepository, jobRunRepository, jobRegistry);
         seeder.seedIfEmpty();
         
         AppContext appContext = new AppContext(workflowRepository, jobRunRepository);
@@ -48,7 +49,7 @@ public final class Main {
         } else {
             // Start HTTP Server and engine
             int port = configService.getInt("taskflow.http.port", 8081);
-            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.reportService(), port);
+            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), port);
             httpApi.start();
             
             System.out.println("TaskFlow engine started.");

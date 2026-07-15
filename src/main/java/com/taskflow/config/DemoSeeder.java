@@ -11,6 +11,7 @@ import com.taskflow.core.WorkflowId;
 import com.taskflow.persistence.ConnectionManager;
 import com.taskflow.persistence.JobRunRepository;
 import com.taskflow.persistence.WorkflowRepository;
+import com.taskflow.core.JobRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +29,13 @@ public final class DemoSeeder {
     private final ConnectionManager connectionManager;
     private final WorkflowRepository workflowRepository;
     private final JobRunRepository jobRunRepository;
+    private final JobRegistry jobRegistry;
 
-    public DemoSeeder(ConnectionManager connectionManager, WorkflowRepository workflowRepository, JobRunRepository jobRunRepository) {
+    public DemoSeeder(ConnectionManager connectionManager, WorkflowRepository workflowRepository, JobRunRepository jobRunRepository, JobRegistry jobRegistry) {
         this.connectionManager = connectionManager;
         this.workflowRepository = workflowRepository;
         this.jobRunRepository = jobRunRepository;
+        this.jobRegistry = jobRegistry;
     }
 
     public void seedIfEmpty() {
@@ -71,15 +74,26 @@ public final class DemoSeeder {
         JobId generateReportId = JobId.of("generate-report");
         JobId notifyId = JobId.of("notify-stakeholders");
 
+        jobRegistry.register("com.taskflow.demo.ExtractDataJob", ctx -> com.taskflow.api.JobResult.success("Extracted 500 rows"));
+        jobRegistry.register("com.taskflow.demo.TransformDataJob", ctx -> com.taskflow.api.JobResult.success("Transformed 500 rows"));
+        jobRegistry.register("com.taskflow.demo.AnalyzeMetricsJob", ctx -> com.taskflow.api.JobResult.success("Generated 10 metrics"));
+        jobRegistry.register("com.taskflow.demo.GenerateReportJob", ctx -> com.taskflow.api.JobResult.success("Report generated"));
+        jobRegistry.register("com.taskflow.demo.NotifyStakeholdersJob", ctx -> com.taskflow.api.JobResult.success("Emails sent"));
+
         Workflow workflow = Workflow.builder(wfId, "Nightly Analytics")
                 .description("Runs nightly analytics and notifies stakeholders")
                 .schedule(ScheduleType.CRON, "0 2 * * *")
                 .overlapPolicy(OverlapPolicy.SKIP)
-                .addJob(JobDefinition.builder(extractId, "Extract Data", ctx -> com.taskflow.api.JobResult.success("demo job - no-op")).timeout(Duration.ofMinutes(10)).build())
-                .addJob(JobDefinition.builder(transformId, "Transform Data", ctx -> com.taskflow.api.JobResult.success("demo job - no-op")).timeout(Duration.ofMinutes(5)).build(), extractId)
-                .addJob(JobDefinition.builder(analyzeId, "Analyze Metrics", ctx -> com.taskflow.api.JobResult.success("demo job - no-op")).timeout(Duration.ofMinutes(2)).build(), transformId)
-                .addJob(JobDefinition.builder(generateReportId, "Generate Report", ctx -> com.taskflow.api.JobResult.success("demo job - no-op")).timeout(Duration.ofMinutes(2)).build(), analyzeId)
-                .addJob(JobDefinition.builder(notifyId, "Notify Stakeholders", ctx -> com.taskflow.api.JobResult.success("demo job - no-op")).timeout(Duration.ofMinutes(15)).build(), generateReportId)
+                .addJob(JobDefinition.builder(extractId, "Extract Data", jobRegistry.getJob("com.taskflow.demo.ExtractDataJob").get())
+                        .jobClassName("com.taskflow.demo.ExtractDataJob").timeout(Duration.ofMinutes(10)).build())
+                .addJob(JobDefinition.builder(transformId, "Transform Data", jobRegistry.getJob("com.taskflow.demo.TransformDataJob").get())
+                        .jobClassName("com.taskflow.demo.TransformDataJob").timeout(Duration.ofMinutes(5)).build(), extractId)
+                .addJob(JobDefinition.builder(analyzeId, "Analyze Metrics", jobRegistry.getJob("com.taskflow.demo.AnalyzeMetricsJob").get())
+                        .jobClassName("com.taskflow.demo.AnalyzeMetricsJob").timeout(Duration.ofMinutes(2)).build(), transformId)
+                .addJob(JobDefinition.builder(generateReportId, "Generate Report", jobRegistry.getJob("com.taskflow.demo.GenerateReportJob").get())
+                        .jobClassName("com.taskflow.demo.GenerateReportJob").timeout(Duration.ofMinutes(2)).build(), analyzeId)
+                .addJob(JobDefinition.builder(notifyId, "Notify Stakeholders", jobRegistry.getJob("com.taskflow.demo.NotifyStakeholdersJob").get())
+                        .jobClassName("com.taskflow.demo.NotifyStakeholdersJob").timeout(Duration.ofMinutes(15)).build(), generateReportId)
                 .build();
 
         workflowRepository.save(workflow);

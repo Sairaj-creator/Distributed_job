@@ -43,7 +43,7 @@ class SchedulerEngineIntegrationTest {
              JobExecutor executor = new JobExecutor(2, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             Thread trigger = new Thread(() -> {
-                WorkflowRun run = engine.submitRun(workflow);
+                WorkflowRun run = engine.submitRunAsync(workflow).join();
                 assertEquals(JobStatus.SUCCEEDED, run.status());
             });
             trigger.start();
@@ -76,7 +76,7 @@ class SchedulerEngineIntegrationTest {
         try (EventBus bus = new EventBus();
              JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
-            WorkflowRun run = engine.submitRun(workflow);
+            WorkflowRun run = engine.submitRunAsync(workflow).join();
 
             assertEquals(JobStatus.SUCCEEDED, run.status());
             assertEquals(3, attempts.get());
@@ -102,7 +102,7 @@ class SchedulerEngineIntegrationTest {
         try (EventBus bus = new EventBus();
              JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
-            WorkflowRun run = engine.submitRun(workflow);
+            WorkflowRun run = engine.submitRunAsync(workflow).join();
 
             assertEquals(JobStatus.FAILED, run.status());
             assertEquals(0, downstreamRuns.get());
@@ -120,7 +120,7 @@ class SchedulerEngineIntegrationTest {
         try (EventBus bus = new EventBus();
              JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC(), repository)) {
-            WorkflowRun run = engine.submitRun(workflow);
+            WorkflowRun run = engine.submitRunAsync(workflow).join();
 
             assertEquals(JobStatus.SUCCEEDED, run.status());
             assertEquals(1, repository.findAll().size());
