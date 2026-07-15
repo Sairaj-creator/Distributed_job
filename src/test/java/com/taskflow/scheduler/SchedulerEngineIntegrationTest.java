@@ -127,4 +127,38 @@ class SchedulerEngineIntegrationTest {
             assertEquals(JobStatus.SUCCEEDED, repository.findAll().get(0).status());
         }
     }
+    @Test
+    void executesManyWorkflowsConcurrentlyWithoutStarvation() {
+        int numWorkflows = 100;
+        java.util.List<Workflow> workflows = new java.util.ArrayList<>();
+        
+        for (int i = 0; i < numWorkflows; i++) {
+            Workflow.Builder wfBuilder = Workflow.builder(WorkflowId.of("stress-" + i), "Stress WF " + i);
+            JobId last = null;
+            for (int j = 0; j < 5; j++) {
+                JobId current = JobId.of("j" + j);
+                wfBuilder.addJob(JobDefinition.builder(current, current.value(), ctx -> JobResult.success("ok")).build());
+                if (last != null) {
+                    wfBuilder.dependsOn(current, last);
+                }
+                last = current;
+            }
+            workflows.add(wfBuilder.build());
+        }
+
+        try (EventBus bus = new EventBus();
+             JobExecutor executor = new JobExecutor(4, bus, new JobLockRegistry(), Clock.systemUTC());
+             SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
+            
+            java.util.List<java.util.concurrent.CompletableFuture<WorkflowRun>> futures = new java.util.ArrayList<>();
+            for (Workflow workflow : workflows) {
+                futures.add(engine.submitRunAsync(workflow));
+            }
+
+            java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0])).join();
+            for (java.util.concurrent.CompletableFuture<WorkflowRun> future : futures) {
+                assertEquals(JobStatus.SUCCEEDED, future.join().status());
+            }
+        }
+    }
 }
