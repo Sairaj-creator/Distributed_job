@@ -26,6 +26,17 @@ function Dashboard({ onSelectWorkflow }) {
     }
   };
 
+  const handleAction = async (e, workflowId, action) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`http://localhost:8081/workflows/${workflowId}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Failed to ${action} workflow`);
+      fetchDashboardData();
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return <div className="flex-center" style={{ height: '100%' }}>Loading dashboard...</div>;
   }
@@ -78,8 +89,19 @@ function Dashboard({ onSelectWorkflow }) {
                   <span>Schedule: {wf.scheduleType} ({wf.scheduleSpec})</span>
                 </div>
               </div>
-              <div style={{ background: 'var(--border-light)', padding: '0.5rem', borderRadius: '50%' }}>
-                {wf.paused ? <Pause size={20} color="var(--text-secondary)" /> : <Play size={20} color="var(--status-success)" />}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  onClick={(e) => handleAction(e, wf.workflowId, 'trigger')}
+                  style={{ padding: '0.5rem 1rem', background: 'var(--accent-primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+                >
+                  <Play size={16} /> Trigger
+                </button>
+                <button 
+                  onClick={(e) => handleAction(e, wf.workflowId, wf.paused ? 'resume' : 'pause')}
+                  style={{ padding: '0.5rem 1rem', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+                >
+                  {wf.paused ? <Play size={16} /> : <Pause size={16} />} {wf.paused ? 'Resume' : 'Pause'}
+                </button>
               </div>
             </div>
           ))}

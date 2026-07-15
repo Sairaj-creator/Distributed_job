@@ -28,8 +28,9 @@ public final class Main {
         
         com.taskflow.config.DemoSeeder seeder = new com.taskflow.config.DemoSeeder(connectionManager, workflowRepository, jobRunRepository, jobRegistry);
         seeder.seedIfEmpty();
-        
+
         AppContext appContext = new AppContext(workflowRepository, jobRunRepository);
+        
         TaskFlowCli cli = new TaskFlowCli(
                 appContext.workflowService(),
                 appContext.schedulingService(),
