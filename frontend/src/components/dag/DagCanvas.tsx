@@ -3,6 +3,8 @@ import {
   ReactFlow,
   Controls,
   Background,
+  Handle,
+  Position,
   type Node,
   type Edge,
 } from "@xyflow/react";
@@ -47,7 +49,8 @@ function getLayoutedElements(nodes: Node[], edges: Edge[], direction = "LR") {
 // Custom Node component
 function JobNode({ data }: { data: { job: WorkflowJob } }) {
   return (
-    <div className="bg-surface border border-border rounded-lg p-3 w-[200px] shadow-sm">
+    <div className="bg-surface border border-border rounded-lg p-3 w-[200px] shadow-sm relative">
+      <Handle type="target" position={Position.Left} className="w-2 h-2 !bg-zinc-500 border-none" />
       <div className="text-sm font-medium text-zinc-200 truncate" title={data.job.name}>
         {data.job.name}
       </div>
@@ -55,6 +58,7 @@ function JobNode({ data }: { data: { job: WorkflowJob } }) {
         {data.job.jobId}
       </div>
       <Badge status={data.job.lastStatus} />
+      <Handle type="source" position={Position.Right} className="w-2 h-2 !bg-zinc-500 border-none" />
     </div>
   );
 }

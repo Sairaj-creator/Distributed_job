@@ -28,7 +28,7 @@ export function DashboardPage() {
     return <ErrorState message={error.message} onRetry={() => refetch()} className="mt-8" />;
   }
 
-  const { totalWorkflows, totalJobs, runningJobs, successRate } = data!;
+  const { totalWorkflows, totalJobs, runningJobs, successRate } = data!.summary;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
