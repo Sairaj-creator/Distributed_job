@@ -40,7 +40,7 @@ class SchedulerEngineIntegrationTest {
         Workflow workflow = Workflow.builder(WorkflowId.of("wf"), "WF").addJob(a).addJob(b).build();
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(2, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(2, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             Thread trigger = new Thread(() -> {
                 WorkflowRun run = engine.submitRunAsync(workflow).join();
@@ -74,7 +74,7 @@ class SchedulerEngineIntegrationTest {
         Workflow workflow = Workflow.builder(WorkflowId.of("wf"), "WF").addJob(flaky).build();
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(1, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             WorkflowRun run = engine.submitRunAsync(workflow).join();
 
@@ -100,7 +100,7 @@ class SchedulerEngineIntegrationTest {
                 .build();
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(1, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             WorkflowRun run = engine.submitRunAsync(workflow).join();
 
@@ -118,7 +118,7 @@ class SchedulerEngineIntegrationTest {
         Workflow workflow = Workflow.builder(WorkflowId.of("wf"), "WF").addJob(job).build();
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(1, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(1, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC(), repository)) {
             WorkflowRun run = engine.submitRunAsync(workflow).join();
 
@@ -147,7 +147,7 @@ class SchedulerEngineIntegrationTest {
         }
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(4, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(4, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             
             java.util.List<java.util.concurrent.CompletableFuture<WorkflowRun>> futures = new java.util.ArrayList<>();
@@ -185,7 +185,7 @@ class SchedulerEngineIntegrationTest {
         }
 
         try (EventBus bus = new EventBus();
-             JobExecutor executor = new JobExecutor(8, bus, new JobLockRegistry(), Clock.systemUTC());
+             JobExecutor executor = new JobExecutor(8, 300000L, bus, new JobLockRegistry(), Clock.systemUTC());
              SchedulerEngine engine = new SchedulerEngine(executor, Clock.systemUTC())) {
             
             java.util.List<java.util.concurrent.CompletableFuture<WorkflowRun>> futures = new java.util.ArrayList<>();

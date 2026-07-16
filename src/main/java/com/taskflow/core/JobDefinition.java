@@ -3,7 +3,7 @@ package com.taskflow.core;
 import com.taskflow.api.Job;
 import com.taskflow.api.RetryPolicy;
 
-import java.io.Serializable;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -13,8 +13,7 @@ import java.util.Objects;
 /**
  * Immutable definition of a job inside a workflow.
  */
-public final class JobDefinition implements Serializable {
-    private static final long serialVersionUID = 1L;
+public final class JobDefinition {
     private static final RetryPolicy DEFAULT_NO_RETRY = new RetryPolicy() {
         @Override
         public int maxAttempts() {

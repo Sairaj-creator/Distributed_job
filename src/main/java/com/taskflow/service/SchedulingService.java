@@ -20,4 +20,8 @@ public final class SchedulingService {
         return schedulerEngine.submitRunAsync(workflowService.find(workflowId)
                 .orElseThrow(() -> new IllegalArgumentException("unknown workflow " + workflowId)));
     }
+
+    public long getDroppedTriggers() {
+        return schedulerEngine.getDroppedTriggers();
+    }
 }

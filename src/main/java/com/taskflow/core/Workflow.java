@@ -1,6 +1,6 @@
 package com.taskflow.core;
 
-import java.io.Serializable;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -13,8 +13,7 @@ import java.util.Set;
 /**
  * Immutable workflow definition represented as a directed acyclic graph of jobs.
  */
-public final class Workflow implements Serializable {
-    private static final long serialVersionUID = 1L;
+public final class Workflow {
 
     private final WorkflowId id;
     private final String name;
@@ -113,6 +112,15 @@ public final class Workflow implements Serializable {
 
     public WorkflowGraph graph() {
         return graph;
+    }
+
+    public String contentHash() {
+        int hash = Objects.hash(id, name, scheduleSpec, overlapPolicy);
+        for (JobId jobId : jobs.keySet()) {
+            hash = 31 * hash + jobId.hashCode();
+            hash = 31 * hash + graph.dependenciesOf(jobId).hashCode();
+        }
+        return Integer.toHexString(hash);
     }
 
     /**

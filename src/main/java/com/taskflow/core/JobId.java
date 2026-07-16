@@ -1,13 +1,12 @@
 package com.taskflow.core;
 
-import java.io.Serializable;
+
 import java.util.Objects;
 
 /**
  * Value object for job identifiers.
  */
-public final class JobId implements Comparable<JobId>, Serializable {
-    private static final long serialVersionUID = 1L;
+public final class JobId implements Comparable<JobId> {
     private final String value;
 
     private JobId(String value) {

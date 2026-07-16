@@ -15,18 +15,6 @@ class WorkflowCheckpointServiceTest {
     private final WorkflowCheckpointService service = new WorkflowCheckpointService();
 
     @Test
-    void savesAndLoadsJavaCheckpoint(@TempDir Path tempDir) throws Exception {
-        Workflow workflow = WorkflowFixtures.diamondWorkflow();
-        Path checkpoint = tempDir.resolve("workflow.bin");
-
-        service.saveJava(workflow, checkpoint);
-        Workflow loaded = service.loadJava(checkpoint);
-
-        assertEquals(workflow.id(), loaded.id());
-        assertEquals(workflow.graph().dependencies(), loaded.graph().dependencies());
-    }
-
-    @Test
     void writesJsonCheckpoint(@TempDir Path tempDir) throws Exception {
         Workflow workflow = WorkflowFixtures.diamondWorkflow();
         Path json = tempDir.resolve("workflow.json");

@@ -35,9 +35,11 @@ public final class SchedulerEngine implements AutoCloseable {
     private final LruCache<String, List<List<JobId>>> topoCache;
     private final JobRunRepository jobRunRepository;
     private final Clock clock;
+    private final int queueLimit;
+    private final AtomicLong droppedTriggers = new AtomicLong(0);
     private final AtomicLong workflowRunIds = new AtomicLong(1);
     private final AtomicBoolean acceptingWork = new AtomicBoolean(true);
-    private final ConcurrentHashMap<WorkflowId, Boolean> activeWorkflows = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<WorkflowId, java.util.concurrent.atomic.AtomicInteger> activeWorkflows = new ConcurrentHashMap<>();
 
     public SchedulerEngine(JobExecutor jobExecutor, Clock clock) {
         this(jobExecutor, clock, null);
@@ -45,7 +47,7 @@ public final class SchedulerEngine implements AutoCloseable {
 
     public SchedulerEngine(JobExecutor jobExecutor, Clock clock, JobRunRepository jobRunRepository) {
         this(new DagValidator(), new TopologicalSorter(), jobExecutor, new FanOutFirstStrategy(),
-                new LruCache<>(128), jobRunRepository, clock);
+                new LruCache<>(128), jobRunRepository, clock, 100);
     }
 
     public SchedulerEngine(
@@ -55,7 +57,8 @@ public final class SchedulerEngine implements AutoCloseable {
             JobPriorityStrategy priorityStrategy,
             LruCache<String, List<List<JobId>>> topoCache,
             JobRunRepository jobRunRepository,
-            Clock clock) {
+            Clock clock,
+            int queueLimit) {
         this.dagValidator = Objects.requireNonNull(dagValidator, "dagValidator");
         this.topologicalSorter = Objects.requireNonNull(topologicalSorter, "topologicalSorter");
         this.jobExecutor = Objects.requireNonNull(jobExecutor, "jobExecutor");
@@ -63,6 +66,11 @@ public final class SchedulerEngine implements AutoCloseable {
         this.topoCache = Objects.requireNonNull(topoCache, "topoCache");
         this.jobRunRepository = jobRunRepository;
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.queueLimit = queueLimit;
+    }
+
+    public long getDroppedTriggers() {
+        return droppedTriggers.get();
     }
 
     /**
@@ -82,15 +90,17 @@ public final class SchedulerEngine implements AutoCloseable {
         }
 
         // Overlap Guard
-        if (activeWorkflows.putIfAbsent(workflow.id(), true) != null) {
-            // Already active. Implement SKIP policy.
+        int count = activeWorkflows.computeIfAbsent(workflow.id(), k -> new java.util.concurrent.atomic.AtomicInteger(0)).incrementAndGet();
+        if (count > queueLimit) {
+            activeWorkflows.get(workflow.id()).decrementAndGet();
+            droppedTriggers.incrementAndGet();
             return CompletableFuture.completedFuture(
                     new WorkflowRun(nextRunId(), workflow.id(), "MANUAL", JobStatus.SKIPPED, clock.instant(), clock.instant())
             );
         }
 
         return executeDagAsync(workflow).whenComplete((run, ex) -> {
-            activeWorkflows.remove(workflow.id());
+            activeWorkflows.get(workflow.id()).decrementAndGet();
         });
     }
 
@@ -100,10 +110,11 @@ public final class SchedulerEngine implements AutoCloseable {
         } catch (Exception e) {
             return CompletableFuture.failedFuture(e);
         }
-        List<List<JobId>> levels = topoCache.get(workflow.id().value())
+        String cacheKey = workflow.id().value() + "_" + workflow.contentHash();
+        List<List<JobId>> levels = topoCache.get(cacheKey)
                 .orElseGet(() -> {
                     List<List<JobId>> sorted = topologicalSorter.sort(workflow);
-                    topoCache.put(workflow.id().value(), sorted);
+                    topoCache.put(cacheKey, sorted);
                     return sorted;
                 });
         long workflowRunId = nextRunId();

@@ -14,22 +14,29 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Embedded HTTP status API using JDK HttpServer.
  */
 public final class StatusHttpApi implements AutoCloseable {
+    private static final Logger log = LoggerFactory.getLogger(StatusHttpApi.class);
     private final WorkflowService workflowService;
     private final SchedulingService schedulingService;
     private final ReportService reportService;
     private final JsonWriter jsonWriter;
     private final HttpServer server;
     private final ExecutorService executor;
+    private final String apiKey;
+    private final String corsAllowlist;
 
-    public StatusHttpApi(WorkflowService workflowService, SchedulingService schedulingService, ReportService reportService, int port) throws IOException {
+    public StatusHttpApi(WorkflowService workflowService, SchedulingService schedulingService, ReportService reportService, int port, String apiKey, String corsAllowlist) throws IOException {
         this.workflowService = workflowService;
         this.schedulingService = schedulingService;
         this.reportService = reportService;
+        this.apiKey = apiKey;
+        this.corsAllowlist = corsAllowlist;
         this.jsonWriter = new JsonWriter();
         this.executor = Executors.newFixedThreadPool(10);
         this.server = HttpServer.create(new InetSocketAddress(port), 0);
@@ -50,7 +57,8 @@ public final class StatusHttpApi implements AutoCloseable {
         write(exchange, 200, jsonWriter.statusResponse(
                 workflowService.listStatuses(),
                 reportService.countByStatus(JobStatus.RUNNING),
-                overallSuccessRate()
+                overallSuccessRate(),
+                schedulingService.getDroppedTriggers()
         ));
     }
 
@@ -81,11 +89,19 @@ public final class StatusHttpApi implements AutoCloseable {
         WorkflowId id = WorkflowId.of(idStr);
 
         if ("POST".equalsIgnoreCase(method)) {
+            String authHeader = exchange.getRequestHeaders().getFirst("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ") || !authHeader.substring(7).equals(apiKey)) {
+                write(exchange, 401, jsonWriter.message("unauthorized"));
+                return;
+            }
             try {
                 switch (action) {
                     case "trigger" -> {
-                        schedulingService.triggerNowAsync(id);
-                        write(exchange, 200, jsonWriter.message("triggered"));
+                        schedulingService.triggerNowAsync(id).exceptionally(ex -> {
+                            log.error("workflow trigger failed", ex);
+                            return null;
+                        });
+                        write(exchange, 202, jsonWriter.message("triggered"));
                     }
                     case "pause" -> {
                         workflowService.pause(id);
@@ -98,6 +114,7 @@ public final class StatusHttpApi implements AutoCloseable {
                     default -> write(exchange, 400, jsonWriter.message("unknown action " + action));
                 }
             } catch (Exception e) {
+                log.error("API error", e);
                 write(exchange, 500, jsonWriter.message(e.getMessage()));
             }
             return;
@@ -114,9 +131,11 @@ public final class StatusHttpApi implements AutoCloseable {
     private void write(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-        exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
-        exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
+        if (corsAllowlist != null && !corsAllowlist.isEmpty()) {
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", corsAllowlist);
+            exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        }
         
         if (status == 204) {
             exchange.sendResponseHeaders(status, -1);

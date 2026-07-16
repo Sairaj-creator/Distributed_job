@@ -5,8 +5,6 @@ import com.taskflow.core.JobId;
 import com.taskflow.core.Workflow;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,32 +15,7 @@ import java.util.stream.Collectors;
  * Writes workflow checkpoint backups using Java serialization and a hand-written JSON format.
  */
 public final class WorkflowCheckpointService {
-    /**
-     * Saves a workflow using Java object serialization.
-     *
-     * @param workflow workflow to save
-     * @param path target file
-     * @throws IOException if writing fails
-     */
-    public void saveJava(Workflow workflow, Path path) throws IOException {
-        try (ObjectOutputStream output = new ObjectOutputStream(Files.newOutputStream(path))) {
-            output.writeObject(workflow);
-        }
-    }
 
-    /**
-     * Loads a workflow checkpoint written by {@link #saveJava(Workflow, Path)}.
-     *
-     * @param path source file
-     * @return deserialized workflow metadata
-     * @throws IOException if reading fails
-     * @throws ClassNotFoundException if the serialized class cannot be resolved
-     */
-    public Workflow loadJava(Path path) throws IOException, ClassNotFoundException {
-        try (ObjectInputStream input = new ObjectInputStream(Files.newInputStream(path))) {
-            return (Workflow) input.readObject();
-        }
-    }
 
     /**
      * Saves a workflow definition as human-readable JSON.

@@ -3,47 +3,71 @@ package com.taskflow.concurrency;
 import com.taskflow.core.JobId;
 import com.taskflow.core.OverlapPolicy;
 
+import java.util.LinkedList;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Per-job lock registry used to prevent unwanted overlapping executions.
  */
 public final class JobLockRegistry {
-    private final ConcurrentMap<JobId, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final ConcurrentMap<JobId, JobLock> locks = new ConcurrentHashMap<>();
 
     /**
-     * Acquires a lock according to the overlap policy.
+     * Acquires a lock asynchronously according to the overlap policy.
      *
      * @param jobId job identifier
      * @param policy overlap policy
-     * @return a lease if execution may proceed, otherwise empty for SKIP
+     * @return a future yielding a lease if execution may proceed, otherwise empty for SKIP
      */
-    public Optional<Lease> acquire(JobId jobId, OverlapPolicy policy) {
+    public CompletableFuture<Optional<Lease>> acquireAsync(JobId jobId, OverlapPolicy policy) {
         if (policy == OverlapPolicy.RUN_CONCURRENTLY) {
-            return Optional.of(Lease.noop());
+            return CompletableFuture.completedFuture(Optional.of(Lease.noop()));
         }
-        ReentrantLock lock = locks.computeIfAbsent(jobId, ignored -> new ReentrantLock());
-        if (policy == OverlapPolicy.SKIP) {
-            if (lock.isLocked() || !lock.tryLock()) {
-                return Optional.empty();
+        JobLock lock = locks.computeIfAbsent(jobId, ignored -> new JobLock());
+        return lock.acquire(policy);
+    }
+
+    private static final class JobLock {
+        private boolean locked = false;
+        private final Queue<CompletableFuture<Optional<Lease>>> queue = new LinkedList<>();
+
+        public synchronized CompletableFuture<Optional<Lease>> acquire(OverlapPolicy policy) {
+            if (!locked) {
+                locked = true;
+                return CompletableFuture.completedFuture(Optional.of(new Lease(this)));
             }
+            if (policy == OverlapPolicy.SKIP) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+            // QUEUE
+            CompletableFuture<Optional<Lease>> future = new CompletableFuture<>();
+            queue.add(future);
+            return future;
         }
-        if (policy == OverlapPolicy.QUEUE) {
-            lock.lock();
+
+        public synchronized void release() {
+            CompletableFuture<Optional<Lease>> next;
+            while ((next = queue.poll()) != null) {
+                if (!next.isDone()) {
+                    next.complete(Optional.of(new Lease(this)));
+                    return;
+                }
+            }
+            locked = false;
         }
-        return Optional.of(new Lease(lock));
     }
 
     /**
      * Auto-closeable lock lease.
      */
     public static final class Lease implements AutoCloseable {
-        private final ReentrantLock lock;
+        private final JobLock lock;
 
-        private Lease(ReentrantLock lock) {
+        private Lease(JobLock lock) {
             this.lock = lock;
         }
 
@@ -53,8 +77,8 @@ public final class JobLockRegistry {
 
         @Override
         public void close() {
-            if (lock != null && lock.isHeldByCurrentThread()) {
-                lock.unlock();
+            if (lock != null) {
+                lock.release();
             }
         }
     }

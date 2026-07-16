@@ -34,10 +34,20 @@ public final class AppContext implements AutoCloseable {
         this.eventBus.register(metricsEventListener);
         this.jobExecutor = new JobExecutor(
                 configService.getInt("taskflow.workerThreads", Runtime.getRuntime().availableProcessors()),
+                configService.getInt("taskflow.job.lockWaitTimeoutMs", 300000),
                 eventBus,
                 new JobLockRegistry(),
                 Clock.systemUTC());
-        this.schedulerEngine = new SchedulerEngine(jobExecutor, Clock.systemUTC(), jobRunRepository);
+        this.schedulerEngine = new SchedulerEngine(
+                new DagValidator(),
+                new com.taskflow.scheduler.TopologicalSorter(),
+                jobExecutor,
+                new com.taskflow.scheduler.priority.FanOutFirstStrategy(),
+                new com.taskflow.concurrency.LruCache<>(128),
+                jobRunRepository,
+                Clock.systemUTC(),
+                configService.getInt("taskflow.workflow.queueLimit", 10)
+        );
         this.workflowService = new WorkflowService(workflowRepository, new DagValidator());
         this.schedulingService = new SchedulingService(workflowService, schedulerEngine);
         this.reportService = new ReportService(jobRunRepository);

@@ -37,13 +37,15 @@ public final class JobExecutor implements AutoCloseable {
     private final EventBus eventBus;
     private final JobLockRegistry lockRegistry;
     private final Clock clock;
+    private final long lockWaitTimeoutMs;
 
-    public JobExecutor(int workerThreads, EventBus eventBus, JobLockRegistry lockRegistry, Clock clock) {
+    public JobExecutor(int workerThreads, long lockWaitTimeoutMs, EventBus eventBus, JobLockRegistry lockRegistry, Clock clock) {
         if (workerThreads < 1) {
             throw new IllegalArgumentException("workerThreads must be positive");
         }
         this.workers = Executors.newFixedThreadPool(workerThreads, new NamedThreadFactory("taskflow-worker"));
         this.timers = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("taskflow-timer"));
+        this.lockWaitTimeoutMs = lockWaitTimeoutMs;
         this.eventBus = Objects.requireNonNull(eventBus, "eventBus");
         this.lockRegistry = Objects.requireNonNull(lockRegistry, "lockRegistry");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -68,15 +70,6 @@ public final class JobExecutor implements AutoCloseable {
     private CompletableFuture<JobRun> attempt(Workflow workflow, JobDefinition job, long workflowRunId, int attemptNumber) {
         return runOnce(workflow, job, workflowRunId, attemptNumber).thenCompose(run -> {
             if (shouldRetry(job, run)) {
-                JobRun retrying = run.status() == JobStatus.RUNNING
-                        ? run.markRetrying(clock.instant(), run.errorMessage())
-                        : JobRun.builder(job.id(), workflow.id(), workflowRunId)
-                        .attemptNumber(attemptNumber)
-                        .status(JobStatus.RETRYING)
-                        .startedAt(run.startedAt())
-                        .finishedAt(clock.instant())
-                        .errorMessage(run.errorMessage())
-                        .build();
                 publish(job, workflow, workflowRunId, attemptNumber, run.status(), JobStatus.RETRYING, "retry scheduled", null);
                 CompletableFuture<JobRun> next = new CompletableFuture<>();
                 Duration delay = job.retryPolicy().nextDelay(attemptNumber);
@@ -111,12 +104,33 @@ public final class JobExecutor implements AutoCloseable {
                 .status(JobStatus.SCHEDULED)
                 .build();
         publish(job, workflow, workflowRunId, attemptNumber, null, JobStatus.SCHEDULED, "scheduled", null);
+        
         AtomicBoolean completed = new AtomicBoolean(false);
+        AtomicReference<JobRun> runningRef = new AtomicReference<>();
         AtomicReference<Future<?>> workerFuture = new AtomicReference<>();
 
-        Future<?> submitted = workers.submit(() -> {
-            var lease = lockRegistry.acquire(job.id(), workflow.overlapPolicy());
-            if (lease.isEmpty()) {
+        var leaseFuture = lockRegistry.acquireAsync(job.id(), workflow.overlapPolicy());
+        
+        // Lock wait timeout mechanism
+        Future<?> lockTimeoutFuture = timers.schedule(() -> {
+            if (!leaseFuture.isDone() && completed.compareAndSet(false, true)) {
+                leaseFuture.cancel(false);
+                JobTimeoutException timeout = new JobTimeoutException("job lock wait timed out after " + lockWaitTimeoutMs + "ms");
+                JobRun failed = scheduled.markFailed(clock.instant(), timeout.getMessage());
+                publish(job, workflow, workflowRunId, attemptNumber, JobStatus.SCHEDULED,
+                        JobStatus.FAILED, timeout.getMessage(), timeout);
+                result.complete(failed);
+            }
+        }, lockWaitTimeoutMs, TimeUnit.MILLISECONDS);
+
+        leaseFuture.thenAcceptAsync(leaseOpt -> {
+            lockTimeoutFuture.cancel(false);
+            if (completed.get()) {
+                leaseOpt.ifPresent(JobLockRegistry.Lease::close);
+                return;
+            }
+
+            if (leaseOpt.isEmpty()) {
                 JobRun skipped = scheduled.markSkipped(clock.instant(), "overlap policy SKIP");
                 if (completed.compareAndSet(false, true)) {
                     publish(job, workflow, workflowRunId, attemptNumber, JobStatus.SCHEDULED,
@@ -125,50 +139,71 @@ public final class JobExecutor implements AutoCloseable {
                 }
                 return;
             }
-            JobRun running = scheduled.markRunning(clock.instant());
-            publish(job, workflow, workflowRunId, attemptNumber, JobStatus.SCHEDULED, JobStatus.RUNNING, "started", null);
-            try (JobLockRegistry.Lease ignored = lease.get()) {
-                JobContext context = new JobContext(
-                        job.id(),
-                        workflow.id(),
-                        workflowRunId,
-                        attemptNumber,
-                        clock.instant(),
-                        Map.copyOf(job.parameters()));
-                JobResult jobResult = job.job().execute(context);
-                Instant finished = clock.instant();
-                JobRun finishedRun = jobResult.isSuccess()
-                        ? running.markSucceeded(finished, jobResult.outputSummary())
-                        : running.markFailed(finished, jobResult.outputSummary());
-                if (completed.compareAndSet(false, true)) {
-                    publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
-                            finishedRun.status(), jobResult.outputSummary(), null);
-                    result.complete(finishedRun);
+
+            Future<?> submitted = workers.submit(() -> {
+                JobRun running = scheduled.markRunning(clock.instant());
+                runningRef.set(running);
+                publish(job, workflow, workflowRunId, attemptNumber, JobStatus.SCHEDULED, JobStatus.RUNNING, "started", null);
+                
+                Future<?> execTimeoutFuture = timers.schedule(() -> {
+                    if (completed.compareAndSet(false, true)) {
+                        Future<?> future = workerFuture.get();
+                        if (future != null) {
+                            future.cancel(true);
+                        }
+                        JobTimeoutException timeout = new JobTimeoutException("job timed out after " + job.timeout());
+                        JobRun r = runningRef.get();
+                        if (r == null) {
+                            r = scheduled.markRunning(clock.instant());
+                        }
+                        JobRun timedOut = r.markTimedOut(clock.instant(), timeout.getMessage());
+                        publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
+                                JobStatus.TIMED_OUT, timeout.getMessage(), timeout);
+                        result.complete(timedOut);
+                    }
+                }, Math.max(1, job.timeout().toMillis()), TimeUnit.MILLISECONDS);
+
+                try (JobLockRegistry.Lease ignored = leaseOpt.get()) {
+                    JobContext context = new JobContext(
+                            job.id(),
+                            workflow.id(),
+                            workflowRunId,
+                            attemptNumber,
+                            clock.instant(),
+                            Map.copyOf(job.parameters()));
+                    JobResult jobResult = job.job().execute(context);
+                    execTimeoutFuture.cancel(false);
+                    Instant finished = clock.instant();
+                    JobRun finishedRun = jobResult.isSuccess()
+                            ? running.markSucceeded(finished, jobResult.outputSummary())
+                            : running.markFailed(finished, jobResult.outputSummary());
+                    if (completed.compareAndSet(false, true)) {
+                        publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
+                                finishedRun.status(), jobResult.outputSummary(), null);
+                        result.complete(finishedRun);
+                    }
+                } catch (Throwable ex) {
+                    execTimeoutFuture.cancel(false);
+                    Instant finished = clock.instant();
+                    JobRun failed = running.markFailed(finished, ex.getMessage());
+                    if (completed.compareAndSet(false, true)) {
+                        publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
+                                JobStatus.FAILED, ex.getMessage(), ex);
+                        result.complete(failed);
+                    }
                 }
-            } catch (Throwable ex) {
-                Instant finished = clock.instant();
-                JobRun failed = running.markFailed(finished, ex.getMessage());
-                if (completed.compareAndSet(false, true)) {
-                    publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
-                            JobStatus.FAILED, ex.getMessage(), ex);
-                    result.complete(failed);
-                }
-            }
-        });
-        workerFuture.set(submitted);
-        timers.schedule(() -> {
+            });
+            workerFuture.set(submitted);
+        }, workers).exceptionally(ex -> {
             if (completed.compareAndSet(false, true)) {
-                Future<?> future = workerFuture.get();
-                if (future != null) {
-                    future.cancel(true);
-                }
-                JobTimeoutException timeout = new JobTimeoutException("job timed out after " + job.timeout());
-                JobRun timedOut = scheduled.markRunning(clock.instant()).markTimedOut(clock.instant(), timeout.getMessage());
-                publish(job, workflow, workflowRunId, attemptNumber, JobStatus.RUNNING,
-                        JobStatus.TIMED_OUT, timeout.getMessage(), timeout);
-                result.complete(timedOut);
+                JobRun failed = scheduled.markFailed(clock.instant(), ex.getMessage());
+                publish(job, workflow, workflowRunId, attemptNumber, JobStatus.SCHEDULED,
+                        JobStatus.FAILED, ex.getMessage(), ex);
+                result.complete(failed);
             }
-        }, Math.max(1, job.timeout().toMillis()), TimeUnit.MILLISECONDS);
+            return null;
+        });
+
         return result;
     }
 

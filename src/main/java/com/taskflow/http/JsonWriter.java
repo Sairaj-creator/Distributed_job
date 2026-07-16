@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  * Small JSON writer for DTOs used by the embedded status API.
  */
 public final class JsonWriter {
-    public String statusResponse(Collection<WorkflowStatusDto> statuses, long runningJobs, double successRate) {
+    public String statusResponse(Collection<WorkflowStatusDto> statuses, long runningJobs, double successRate, long droppedTriggers) {
         long totalWorkflows = statuses.size();
         long totalJobs = statuses.stream().mapToLong(WorkflowStatusDto::jobCount).sum();
         
@@ -26,7 +26,8 @@ public final class JsonWriter {
                 + "\"totalWorkflows\":" + totalWorkflows + ","
                 + "\"totalJobs\":" + totalJobs + ","
                 + "\"runningJobs\":" + runningJobs + ","
-                + "\"successRate\":" + String.format(java.util.Locale.US, "%.4f", successRate)
+                + "\"successRate\":" + String.format(java.util.Locale.US, "%.4f", successRate) + ","
+                + "\"droppedTriggers\":" + droppedTriggers
                 + "},"
                 + "\"workflows\":" + list
                 + "}";

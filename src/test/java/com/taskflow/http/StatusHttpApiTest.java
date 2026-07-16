@@ -24,10 +24,11 @@ class StatusHttpApiTest {
         WorkflowService service = new WorkflowService(repository, new DagValidator());
         com.taskflow.service.ReportService reportService = new com.taskflow.service.ReportService(new com.taskflow.testsupport.InMemoryJobRunRepository());
         com.taskflow.service.SchedulingService schedulingService = mock(com.taskflow.service.SchedulingService.class);
+        when(schedulingService.triggerNowAsync(any())).thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null));
         service.register(WorkflowFixtures.diamondWorkflow());
         int port = freePort();
 
-        try (StatusHttpApi api = new StatusHttpApi(service, schedulingService, reportService, port)) {
+        try (StatusHttpApi api = new StatusHttpApi(service, schedulingService, reportService, port, "test-key", "*")) {
             api.start();
             HttpClient client = HttpClient.newHttpClient();
 
@@ -42,6 +43,16 @@ class StatusHttpApiTest {
             assertTrue(status.body().contains("\"totalWorkflows\":1"));
             assertEquals(200, detail.statusCode());
             assertTrue(detail.body().contains("\"jobs\":["));
+
+            HttpResponse<String> triggerResponse = client.send(
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/workflows/etl/trigger"))
+                            .header("Authorization", "Bearer test-key")
+                            .POST(HttpRequest.BodyPublishers.noBody())
+                            .build(),
+                    HttpResponse.BodyHandlers.ofString());
+
+            assertEquals(202, triggerResponse.statusCode());
+            verify(schedulingService).triggerNowAsync(com.taskflow.core.WorkflowId.of("etl"));
         }
     }
 

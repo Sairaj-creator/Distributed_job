@@ -61,7 +61,10 @@ public class SchedulingDaemon implements AutoCloseable {
                     if (!nextFireTime.isAfter(now)) {
                         log.info("Triggering workflow {} as it is due (scheduled for {})", workflow.workflowId(), nextFireTime);
                         lastFireTimes.put(workflow.workflowId(), now);
-                        schedulingService.triggerNowAsync(workflow.workflowId());
+                        schedulingService.triggerNowAsync(workflow.workflowId()).exceptionally(ex -> {
+                            log.error("workflow trigger failed", ex);
+                            return null;
+                        });
                     }
                 } catch (Exception e) {
                     log.error("Failed to process cron schedule for workflow {}", workflow.workflowId(), e);

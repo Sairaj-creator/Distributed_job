@@ -53,6 +53,13 @@ public final class EventBus implements AutoCloseable {
     @Override
     public void close() {
         running.set(false);
-        dispatcher.interrupt();
+        try {
+            dispatcher.join(2000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (dispatcher.isAlive()) {
+            dispatcher.interrupt();
+        }
     }
 }

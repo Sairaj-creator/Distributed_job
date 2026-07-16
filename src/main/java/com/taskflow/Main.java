@@ -49,8 +49,15 @@ public final class Main {
             System.exit(0);
         } else {
             // Start HTTP Server and engine
+            String apiKey = configService.getOptional("taskflow.api.key").orElse(null);
+            if (apiKey == null || apiKey.trim().isEmpty()) {
+                System.err.println("CRITICAL: taskflow.api.key is not set. Refusing to start HTTP API.");
+                System.exit(1);
+            }
+            String corsAllowlist = configService.getOptional("taskflow.cors.allowlist").orElse("");
+
             int port = configService.getInt("taskflow.httpPort", 8081);
-            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), port);
+            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), port, apiKey, corsAllowlist);
             httpApi.start();
             
             System.out.println("TaskFlow engine started.");

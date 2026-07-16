@@ -1,6 +1,6 @@
 package com.taskflow.core;
 
-import java.io.Serializable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -12,8 +12,7 @@ import java.util.Set;
 /**
  * Immutable graph view for workflow dependencies.
  */
-public final class WorkflowGraph implements Serializable {
-    private static final long serialVersionUID = 1L;
+public final class WorkflowGraph {
 
     private final Set<JobId> jobs;
     private final Map<JobId, Set<JobId>> dependencies;

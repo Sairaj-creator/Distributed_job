@@ -12,6 +12,7 @@ import java.util.Properties;
 public final class ConfigService {
     private final Properties defaults = new Properties();
     private final Properties profile = new Properties();
+    private final Properties dotEnv = new Properties();
 
     public ConfigService() {
         loadEnvFile();
@@ -27,7 +28,7 @@ public final class ConfigService {
                 java.nio.file.Files.readAllLines(envPath).forEach(line -> {
                     if (line.contains("=") && !line.trim().startsWith("#")) {
                         String[] parts = line.split("=", 2);
-                        System.setProperty(parts[0].trim(), parts[1].trim());
+                        dotEnv.setProperty(parts[0].trim(), parts[1].trim());
                     }
                 });
             }
@@ -71,6 +72,7 @@ public final class ConfigService {
     private Optional<String> env(String key) {
         return Optional.ofNullable(System.getProperty(key))
                 .or(() -> Optional.ofNullable(System.getenv(key)))
+                .or(() -> Optional.ofNullable(dotEnv.getProperty(key)))
                 .filter(value -> !value.isBlank());
     }
 

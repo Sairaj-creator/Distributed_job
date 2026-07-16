@@ -75,4 +75,12 @@ TaskFlow elegantly renders workflows using color-coded nodes:
 Configure your environment easily by dropping a `.env` file in the root:
 ```env
 TASKFLOW_HTTP_PORT=8081
+TASKFLOW_API_KEY=your-secure-token
+TASKFLOW_CORS_ALLOWLIST=http://localhost:5173
 ```
+
+## 📜 TaskFlow Concepts
+
+- **Overlap Policies**: Define how concurrent workflow triggers are handled. Options include `SKIP` (ignore new triggers if running), `QUEUE` (FIFO queueing with bounds), and `REPLACE` (cancel old runs).
+- **Cron Scheduling**: Standard 5-field cron expressions are supported, defaulting to the local system timezone.
+- **Single-Node limitation**: While TaskFlow persists state to a PostgreSQL database, its execution orchestration and queue limits currently rely on in-memory locks. It is restricted to single-node deployments for now.

@@ -31,6 +31,7 @@ class TaskFlowE2eTest {
         jobRegistry = new JobRegistry();
         JdbcWorkflowRepository workflowRepository = new JdbcWorkflowRepository(connectionManager, jobRegistry);
         JdbcJobRunRepository jobRunRepository = new JdbcJobRunRepository(connectionManager);
+        System.setProperty("TASKFLOW_WORKFLOW_QUEUE_LIMIT", "1");
         
         DemoSeeder seeder = new DemoSeeder(connectionManager, workflowRepository, jobRunRepository, jobRegistry);
         seeder.seedIfEmpty();
@@ -40,6 +41,7 @@ class TaskFlowE2eTest {
 
     @AfterEach
     void tearDown() throws Exception {
+        System.clearProperty("TASKFLOW_WORKFLOW_QUEUE_LIMIT");
         if (appContext != null) {
             appContext.close();
         }

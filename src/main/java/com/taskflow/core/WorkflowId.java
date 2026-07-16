@@ -1,13 +1,12 @@
 package com.taskflow.core;
 
-import java.io.Serializable;
+
 import java.util.Objects;
 
 /**
  * Value object for workflow identifiers.
  */
-public final class WorkflowId implements Comparable<WorkflowId>, Serializable {
-    private static final long serialVersionUID = 1L;
+public final class WorkflowId implements Comparable<WorkflowId> {
     private final String value;
 
     private WorkflowId(String value) {
