@@ -57,7 +57,7 @@ public final class Main {
             String corsAllowlist = configService.getOptional("taskflow.cors.allowlist").orElse("");
 
             int port = configService.getInt("taskflow.httpPort", 8081);
-            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), port, apiKey, corsAllowlist);
+            StatusHttpApi httpApi = new StatusHttpApi(appContext.workflowService(), appContext.schedulingService(), appContext.reportService(), jobRunRepository, port, apiKey, corsAllowlist);
             httpApi.start();
             
             System.out.println("TaskFlow engine started.");

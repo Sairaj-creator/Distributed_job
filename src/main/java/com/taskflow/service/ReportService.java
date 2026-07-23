@@ -72,6 +72,12 @@ public final class ReportService {
                 .toList();
     }
 
+    /**
+     * Aggregates execution metrics for a specific job.
+     * Note: successRate is calculated over total runs (including RUNNING/PENDING in-flight jobs)
+     * as a strict health indicator. Completed terminal-only metrics can be derived by filtering
+     * runs prior to aggregation if required.
+     */
     private JobRunSummaryDto summarizeJob(JobId jobId, List<JobRun> runs) {
         long total = runs.size();
         long succeeded = runs.stream().filter(run -> run.status() == JobStatus.SUCCEEDED).count();

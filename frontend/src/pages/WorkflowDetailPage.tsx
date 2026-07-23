@@ -1,16 +1,27 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useWorkflow } from "@/hooks/useWorkflows";
+import { fetchJobRuns } from "@/api/reports";
 import { DagCanvas } from "@/components/dag/DagCanvas";
 import { Card, CardContent } from "@/components/common/Card";
+import { Badge } from "@/components/common/Badge";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/common/Skeleton";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History, Clock } from "lucide-react";
 
 export function WorkflowDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: workflow, isPending, error, refetch } = useWorkflow(id);
   const [activeTab, setActiveTab] = useState<"overview" | "dag" | "history" | "timeline">("overview");
+
+  const { data: runs = [] } = useQuery({
+    queryKey: ["workflowJobRuns", id],
+    queryFn: fetchJobRuns,
+    refetchInterval: 4000,
+  });
+
+  const workflowRuns = runs.filter((r) => r.workflowId === id);
 
   if (isPending) {
     return (
@@ -75,17 +86,95 @@ export function WorkflowDetailPage() {
             </Card>
           </div>
         )}
+
         {activeTab === "dag" && (
           <div className="absolute inset-0">
             <DagCanvas workflow={workflow} />
           </div>
         )}
-        {(activeTab === "history" || activeTab === "timeline") && (
-          <div className="h-full flex items-center justify-center p-6 text-center border border-dashed border-border rounded-lg text-zinc-500">
-            This view is not yet available in the backend API.
+
+        {activeTab === "history" && (
+          <div className="h-full overflow-auto p-4">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+                <History className="h-5 w-5 text-zinc-400" />
+                Workflow Execution History ({workflowRuns.length})
+              </h3>
+              {workflowRuns.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-zinc-300">
+                    <thead className="border-b border-border bg-surface-hover/50 text-xs font-semibold uppercase text-zinc-400">
+                      <tr>
+                        <th className="px-4 py-3">Run ID</th>
+                        <th className="px-4 py-3">Job ID</th>
+                        <th className="px-4 py-3">Attempt</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Started At</th>
+                        <th className="px-4 py-3">Finished At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {workflowRuns.map((run) => (
+                        <tr key={`${run.runId}-${run.jobId}-${run.attemptNumber}`} className="hover:bg-surface-hover/30 transition-colors">
+                          <td className="px-4 py-3 font-mono text-xs text-zinc-400">#{run.runId}</td>
+                          <td className="px-4 py-3 font-mono font-medium text-zinc-200">{run.jobId}</td>
+                          <td className="px-4 py-3 text-zinc-400">#{run.attemptNumber}</td>
+                          <td className="px-4 py-3"><Badge status={run.status} /></td>
+                          <td className="px-4 py-3 text-xs text-zinc-400">{formatDate(run.startedAt)}</td>
+                          <td className="px-4 py-3 text-xs text-zinc-400">{formatDate(run.finishedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-8 text-center text-zinc-400">No execution runs recorded for this workflow yet.</div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "timeline" && (
+          <div className="h-full overflow-auto p-4">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-zinc-400" />
+                Execution Timeline
+              </h3>
+              {workflowRuns.length > 0 ? (
+                <div className="space-y-3">
+                  {workflowRuns.map((run) => (
+                    <div key={`${run.runId}-${run.jobId}`} className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border">
+                      <div className="flex items-center gap-3">
+                        <Badge status={run.status} />
+                        <div>
+                          <p className="font-mono text-sm font-medium text-zinc-200">{run.jobId}</p>
+                          <p className="text-xs text-zinc-500">Attempt #{run.attemptNumber} • Workflow Run #{run.workflowRunId}</p>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-zinc-400">
+                        <p>{formatDate(run.startedAt)}</p>
+                        {run.errorMessage && <p className="text-rose-400 mt-0.5">{run.errorMessage}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-zinc-400">No timeline events recorded yet.</div>
+              )}
+            </Card>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function formatDate(iso: string) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
 }

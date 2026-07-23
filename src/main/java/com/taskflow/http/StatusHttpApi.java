@@ -25,6 +25,7 @@ public final class StatusHttpApi implements AutoCloseable {
     private final WorkflowService workflowService;
     private final SchedulingService schedulingService;
     private final ReportService reportService;
+    private final com.taskflow.persistence.JobRunRepository jobRunRepository;
     private final JsonWriter jsonWriter;
     private final HttpServer server;
     private final ExecutorService executor;
@@ -32,9 +33,14 @@ public final class StatusHttpApi implements AutoCloseable {
     private final String corsAllowlist;
 
     public StatusHttpApi(WorkflowService workflowService, SchedulingService schedulingService, ReportService reportService, int port, String apiKey, String corsAllowlist) throws IOException {
+        this(workflowService, schedulingService, reportService, null, port, apiKey, corsAllowlist);
+    }
+
+    public StatusHttpApi(WorkflowService workflowService, SchedulingService schedulingService, ReportService reportService, com.taskflow.persistence.JobRunRepository jobRunRepository, int port, String apiKey, String corsAllowlist) throws IOException {
         this.workflowService = workflowService;
         this.schedulingService = schedulingService;
         this.reportService = reportService;
+        this.jobRunRepository = jobRunRepository;
         this.apiKey = apiKey;
         this.corsAllowlist = corsAllowlist;
         this.jsonWriter = new JsonWriter();
@@ -43,6 +49,9 @@ public final class StatusHttpApi implements AutoCloseable {
         this.server.setExecutor(this.executor);
         server.createContext("/status", this::status);
         server.createContext("/workflows", this::workflow);
+        server.createContext("/reports/stats", this::reportsStats);
+        server.createContext("/runs", this::runs);
+        server.createContext("/jobs", this::jobs);
     }
 
     public void start() {
@@ -126,6 +135,68 @@ public final class StatusHttpApi implements AutoCloseable {
                 .orElseGet(() -> jsonWriter.message("not found"));
                 
         write(exchange, body.contains("not found") ? 404 : 200, body);
+    }
+
+    private void reportsStats(HttpExchange exchange) throws IOException {
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            write(exchange, 204, "");
+            return;
+        }
+        var summaries = reportService.generateReport(java.time.Duration.ofDays(30));
+        write(exchange, 200, jsonWriter.jobStats(summaries));
+    }
+
+    private void runs(HttpExchange exchange) throws IOException {
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            write(exchange, 204, "");
+            return;
+        }
+        if (jobRunRepository == null) {
+            write(exchange, 200, "[]");
+            return;
+        }
+        var query = com.taskflow.persistence.RunQuery.builder().build();
+        var page = com.taskflow.persistence.Page.first(100);
+        var runs = jobRunRepository.findRuns(query, page).items();
+        write(exchange, 200, jsonWriter.jobRuns(runs));
+    }
+
+    private void jobs(HttpExchange exchange) throws IOException {
+        if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+            write(exchange, 204, "");
+            return;
+        }
+        String path = exchange.getRequestURI().getPath();
+        // Path format: /jobs/{id}/history or /jobs/{id}/stats
+        String prefix = "/jobs/";
+        if (!path.startsWith(prefix) || path.length() <= prefix.length()) {
+            write(exchange, 400, jsonWriter.message("job id path required"));
+            return;
+        }
+        String rest = path.substring(prefix.length());
+        int slash = rest.indexOf('/');
+        if (slash == -1) {
+            write(exchange, 400, jsonWriter.message("action required: history or stats"));
+            return;
+        }
+        String jobIdStr = rest.substring(0, slash);
+        String action = rest.substring(slash + 1);
+
+        if ("history".equalsIgnoreCase(action)) {
+            if (jobRunRepository == null) {
+                write(exchange, 200, "[]");
+                return;
+            }
+            var query = com.taskflow.persistence.RunQuery.builder().jobId(com.taskflow.core.JobId.of(jobIdStr)).build();
+            var page = com.taskflow.persistence.Page.first(100);
+            var runs = jobRunRepository.findRuns(query, page).items();
+            write(exchange, 200, jsonWriter.jobRuns(runs));
+        } else if ("stats".equalsIgnoreCase(action)) {
+            var summaries = reportService.generateReport(jobIdStr, java.time.Duration.ofDays(30));
+            write(exchange, 200, jsonWriter.jobStats(summaries));
+        } else {
+            write(exchange, 400, jsonWriter.message("unknown action " + action));
+        }
     }
 
     private void write(HttpExchange exchange, int status, String body) throws IOException {

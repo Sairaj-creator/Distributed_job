@@ -89,3 +89,25 @@ export interface ApiError {
   message: string;
   kind: "network" | "client" | "server" | "unknown";
 }
+
+export interface JobRunSummary {
+  jobId: string;
+  totalRuns: number;
+  succeeded: number;
+  failed: number;
+  successRate: number;
+  averageDurationMs: number;
+  p95DurationMs: number;
+}
+
+export interface JobRunRecord {
+  runId: number;
+  jobId: string;
+  workflowId: string;
+  workflowRunId: number;
+  attemptNumber: number;
+  status: JobStatus;
+  startedAt: string;
+  finishedAt: string;
+  errorMessage: string;
+}

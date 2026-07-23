@@ -76,6 +76,43 @@ public final class JsonWriter {
                 + "}";
     }
 
+    public String jobStats(java.util.List<com.taskflow.dto.JobRunSummaryDto> summaries) {
+        return summaries.stream().map(this::jobSummary).collect(Collectors.joining(",", "[", "]"));
+    }
+
+    public String jobSummary(com.taskflow.dto.JobRunSummaryDto summary) {
+        return "{"
+                + "\"jobId\":\"" + escape(summary.jobId().value()) + "\","
+                + "\"totalRuns\":" + summary.totalRuns() + ","
+                + "\"succeeded\":" + summary.succeeded() + ","
+                + "\"failed\":" + summary.failed() + ","
+                + "\"successRate\":" + String.format(java.util.Locale.US, "%.4f", summary.successRate()) + ","
+                + "\"averageDurationMs\":" + summary.averageDuration().toMillis() + ","
+                + "\"p95DurationMs\":" + summary.p95Duration().toMillis()
+                + "}";
+    }
+
+    public String jobRuns(java.util.List<JobRun> runs) {
+        return runs.stream().map(this::jobRun).collect(Collectors.joining(",", "[", "]"));
+    }
+
+    public String jobRun(JobRun run) {
+        String startedAt = run.startedAt() != null ? run.startedAt().toString() : "";
+        String finishedAt = run.finishedAt() != null ? run.finishedAt().toString() : "";
+        Long runId = run.runId();
+        return "{"
+                + "\"runId\":" + (runId != null ? runId : 0) + ","
+                + "\"jobId\":\"" + escape(run.jobId().value()) + "\","
+                + "\"workflowId\":\"" + escape(run.workflowId().value()) + "\","
+                + "\"workflowRunId\":" + run.workflowRunId() + ","
+                + "\"attemptNumber\":" + run.attemptNumber() + ","
+                + "\"status\":\"" + escape(run.status().name()) + "\","
+                + "\"startedAt\":\"" + escape(startedAt) + "\","
+                + "\"finishedAt\":\"" + escape(finishedAt) + "\","
+                + "\"errorMessage\":\"" + escape(run.errorMessage()) + "\""
+                + "}";
+    }
+
     public String message(String message) {
         return "{\"message\":\"" + escape(message) + "\"}";
     }

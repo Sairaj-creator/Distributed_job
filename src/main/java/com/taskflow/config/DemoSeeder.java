@@ -45,6 +45,10 @@ public final class DemoSeeder {
                 log.info("Database is empty. Seeding demo workflow...");
                 seedDemoWorkflow();
             }
+            if (jobRunRepository.findAll().isEmpty()) {
+                log.info("Job runs empty. Seeding demo runs...");
+                seedDemoRuns();
+            }
         } catch (Exception e) {
             log.error("Failed to seed demo data", e);
         }
@@ -97,6 +101,14 @@ public final class DemoSeeder {
                 .build();
 
         workflowRepository.save(workflow);
+
+        seedDemoRuns();
+    }
+
+    private void seedDemoRuns() {
+        WorkflowId wfId = WorkflowId.of("nightly-etl");
+        JobId extractId = JobId.of("extract-source-data");
+        JobId transformId = JobId.of("transform-data");
 
         // Seed 3 nights of history
         Instant now = Instant.now();
