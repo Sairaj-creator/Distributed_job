@@ -21,6 +21,7 @@ export function MonitoringPage() {
   const {
     data: statusData,
     isLoading: isLoadingStatus,
+    error: statusError,
   } = useQuery({
     queryKey: ["dashboardStatus"],
     queryFn: fetchStatus,
@@ -41,7 +42,7 @@ export function MonitoringPage() {
     );
   }
 
-  if (statsError) {
+  if (statsError && statusError) {
     return (
       <ErrorState
         title="Failed to load monitoring metrics"
@@ -60,7 +61,7 @@ export function MonitoringPage() {
     ? Math.round(stats.reduce((acc, curr) => acc + curr.p95DurationMs, 0) / stats.length)
     : 0;
 
-  const isDisconnected = Boolean(statsError);
+  const isDisconnected = Boolean(statsError) || Boolean(statusError);
   const engineHealthStatus = isDisconnected ? "DEGRADED" : "HEALTHY";
 
   return (
@@ -80,7 +81,7 @@ export function MonitoringPage() {
             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-emerald-400">
-            {summary ? (summary.successRate * 100).toFixed(1) : 100}%
+            {summary ? `${(summary.successRate * 100).toFixed(1)}%` : "—"}
           </div>
           <p className="mt-1 text-xs text-zinc-500">30-day: {totalSucceeded} succeeded / {totalFailed} failed</p>
         </Card>
