@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useWorkflow } from "@/hooks/useWorkflows";
+import { useWorkflow, useTriggerWorkflow, usePauseWorkflow, useResumeWorkflow } from "@/hooks/useWorkflows";
 import { fetchJobRuns } from "@/api/reports";
 import { DagCanvas } from "@/components/dag/DagCanvas";
 import { ExecutionGanttChart } from "@/components/workflow/ExecutionGanttChart";
@@ -9,11 +9,14 @@ import { Card, CardContent } from "@/components/common/Card";
 import { Badge } from "@/components/common/Badge";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/common/Skeleton";
-import { ArrowLeft, History, Clock } from "lucide-react";
+import { ArrowLeft, History, Clock, Zap, Play, Pause } from "lucide-react";
 
 export function WorkflowDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: workflow, isPending, error, refetch } = useWorkflow(id);
+  const trigger = useTriggerWorkflow();
+  const pause = usePauseWorkflow();
+  const resume = useResumeWorkflow();
   const [activeTab, setActiveTab] = useState<"overview" | "dag" | "history" | "timeline">("overview");
 
   const { data: workflowRuns = [] } = useQuery({
@@ -41,10 +44,20 @@ export function WorkflowDetailPage() {
         <Link to="/workflows" className="inline-flex items-center text-sm text-zinc-500 hover:text-zinc-300 transition-colors">
           <ArrowLeft size={16} className="mr-1" /> Back to workflows
         </Link>
-        <div className="flex items-end justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">{workflow.name}</h1>
             <p className="text-zinc-500 text-sm mt-1 max-w-2xl">{workflow.description}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => id && trigger.mutate(id)}
+              disabled={trigger.isPending}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg shadow-sm transition-colors disabled:opacity-50"
+            >
+              <Zap size={15} />
+              Trigger Now
+            </button>
           </div>
         </div>
       </div>

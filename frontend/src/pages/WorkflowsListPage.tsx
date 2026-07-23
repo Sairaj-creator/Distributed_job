@@ -67,32 +67,35 @@ export function WorkflowsListPage() {
                 </td>
                 <td className="px-6 py-4 text-zinc-400">{wf.jobCount}</td>
                 <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex justify-end items-center gap-2">
                     <button
                       onClick={() => trigger.mutate(wf.workflowId)}
                       disabled={trigger.isPending}
-                      className="p-1.5 text-zinc-400 hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                      title="Trigger Now"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-md transition-colors disabled:opacity-50"
+                      title="Trigger Execution"
                     >
-                      <Zap size={16} />
+                      <Zap size={14} />
+                      Trigger Now
                     </button>
                     {wf.paused ? (
                       <button
                         onClick={() => resume.mutate(wf.workflowId)}
                         disabled={resume.isPending}
-                        className="p-1.5 text-zinc-400 hover:text-status-succeeded hover:bg-status-succeeded/10 rounded transition-colors"
-                        title="Resume"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-md transition-colors disabled:opacity-50"
+                        title="Resume Workflow"
                       >
-                        <Play size={16} />
+                        <Play size={14} />
+                        Resume
                       </button>
                     ) : (
                       <button
                         onClick={() => pause.mutate(wf.workflowId)}
                         disabled={pause.isPending}
-                        className="p-1.5 text-zinc-400 hover:text-status-retrying hover:bg-status-retrying/10 rounded transition-colors"
-                        title="Pause"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md transition-colors disabled:opacity-50"
+                        title="Pause Workflow"
                       >
-                        <Pause size={16} />
+                        <Pause size={14} />
+                        Pause
                       </button>
                     )}
                   </div>

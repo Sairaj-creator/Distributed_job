@@ -2,14 +2,15 @@ import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/common/Card";
 import { Skeleton } from "@/components/common/Skeleton";
 import { ErrorState } from "@/components/common/ErrorState";
-import { Activity, Play, CheckCircle, Percent } from "lucide-react";
+import { Activity, Play, CheckCircle, Percent, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useWorkflows } from "@/hooks/useWorkflows";
+import { useWorkflows, useTriggerWorkflow } from "@/hooks/useWorkflows";
 import { Badge } from "@/components/common/Badge";
 
 export function DashboardPage() {
   const { data, isPending, error, refetch } = useDashboardSummary();
   const { data: workflows } = useWorkflows();
+  const trigger = useTriggerWorkflow();
 
   if (isPending) {
     return (
@@ -59,7 +60,18 @@ export function DashboardPage() {
                       </Link>
                       <div className="text-xs text-zinc-500 mt-1">{wf.jobCount} jobs</div>
                     </div>
-                    <Badge status={wf.paused ? "paused" : "running" as any} />
+                    <div className="flex items-center gap-3">
+                      <Badge status={wf.paused ? "paused" : "running" as any} />
+                      <button
+                        onClick={() => trigger.mutate(wf.workflowId)}
+                        disabled={trigger.isPending}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded transition-colors disabled:opacity-50"
+                        title="Trigger Execution"
+                      >
+                        <Zap size={13} />
+                        Trigger
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
