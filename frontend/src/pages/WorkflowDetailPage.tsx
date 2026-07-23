@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useWorkflow } from "@/hooks/useWorkflows";
 import { fetchJobRuns } from "@/api/reports";
 import { DagCanvas } from "@/components/dag/DagCanvas";
+import { ExecutionGanttChart } from "@/components/workflow/ExecutionGanttChart";
 import { Card, CardContent } from "@/components/common/Card";
 import { Badge } from "@/components/common/Badge";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -15,13 +16,11 @@ export function WorkflowDetailPage() {
   const { data: workflow, isPending, error, refetch } = useWorkflow(id);
   const [activeTab, setActiveTab] = useState<"overview" | "dag" | "history" | "timeline">("overview");
 
-  const { data: runs = [] } = useQuery({
+  const { data: workflowRuns = [] } = useQuery({
     queryKey: ["workflowJobRuns", id],
-    queryFn: fetchJobRuns,
+    queryFn: () => fetchJobRuns(id),
     refetchInterval: 4000,
   });
-
-  const workflowRuns = runs.filter((r) => r.workflowId === id);
 
   if (isPending) {
     return (
@@ -139,29 +138,9 @@ export function WorkflowDetailPage() {
             <Card className="p-6">
               <h3 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
                 <Clock className="h-5 w-5 text-zinc-400" />
-                Execution Timeline
+                Execution Gantt Timeline
               </h3>
-              {workflowRuns.length > 0 ? (
-                <div className="space-y-3">
-                  {workflowRuns.map((run) => (
-                    <div key={`${run.runId}-${run.jobId}`} className="flex items-center justify-between p-3 rounded-lg bg-surface border border-border">
-                      <div className="flex items-center gap-3">
-                        <Badge status={run.status} />
-                        <div>
-                          <p className="font-mono text-sm font-medium text-zinc-200">{run.jobId}</p>
-                          <p className="text-xs text-zinc-500">Attempt #{run.attemptNumber} • Workflow Run #{run.workflowRunId}</p>
-                        </div>
-                      </div>
-                      <div className="text-right text-xs text-zinc-400">
-                        <p>{formatDate(run.startedAt)}</p>
-                        {run.errorMessage && <p className="text-rose-400 mt-0.5">{run.errorMessage}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-8 text-center text-zinc-400">No timeline events recorded yet.</div>
-              )}
+              <ExecutionGanttChart runs={workflowRuns} />
             </Card>
           </div>
         )}

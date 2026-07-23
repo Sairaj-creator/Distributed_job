@@ -38,6 +38,7 @@ public final class InMemoryJobRunRepository implements JobRunRepository {
     @Override
     public PageResult<JobRun> findRuns(RunQuery query, Page page) {
         List<JobRun> filtered = runs.stream()
+                .filter(run -> query.workflowId().map(id -> id.equals(run.workflowId())).orElse(true))
                 .filter(run -> query.jobId().map(id -> id.equals(run.jobId())).orElse(true))
                 .filter(run -> query.status().map(status -> status == run.status()).orElse(true))
                 .filter(run -> query.startedFrom().map(from -> run.startedAt() != null && !run.startedAt().isBefore(from)).orElse(true))

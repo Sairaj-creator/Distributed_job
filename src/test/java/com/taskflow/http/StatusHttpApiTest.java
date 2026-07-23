@@ -111,11 +111,17 @@ class StatusHttpApiTest {
             assertTrue(statsResponse.body().contains("\"failed\":1"));
 
             HttpResponse<String> runsResponse = client.send(
-                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/runs")).GET().build(),
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/runs?workflowId=etl")).GET().build(),
                     HttpResponse.BodyHandlers.ofString());
             assertEquals(200, runsResponse.statusCode());
             assertTrue(runsResponse.body().contains("\"workflowRunId\":101"));
             assertTrue(runsResponse.body().contains("\"workflowRunId\":102"));
+
+            HttpResponse<String> emptyFilteredRuns = client.send(
+                    HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/runs?workflowId=other")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, emptyFilteredRuns.statusCode());
+            assertEquals("[]", emptyFilteredRuns.body());
 
             HttpResponse<String> historyResponse = client.send(
                     HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/jobs/extract-data/history")).GET().build(),

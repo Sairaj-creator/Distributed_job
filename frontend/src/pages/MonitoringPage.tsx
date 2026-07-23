@@ -60,6 +60,9 @@ export function MonitoringPage() {
     ? Math.round(stats.reduce((acc, curr) => acc + curr.p95DurationMs, 0) / stats.length)
     : 0;
 
+  const isDisconnected = Boolean(statsError);
+  const engineHealthStatus = isDisconnected ? "DEGRADED" : "HEALTHY";
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
@@ -73,13 +76,13 @@ export function MonitoringPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-4 border-emerald-500/20 bg-emerald-950/10">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-400">Success Rate</span>
+            <span className="text-sm font-medium text-zinc-400">Success Rate (7-Day)</span>
             <CheckCircle2 className="h-5 w-5 text-emerald-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-emerald-400">
             {summary ? (summary.successRate * 100).toFixed(1) : 100}%
           </div>
-          <p className="mt-1 text-xs text-zinc-500">{totalSucceeded} succeeded / {totalFailed} failed</p>
+          <p className="mt-1 text-xs text-zinc-500">30-day: {totalSucceeded} succeeded / {totalFailed} failed</p>
         </Card>
 
         <Card className="p-4 border-blue-500/20 bg-blue-950/10">
@@ -93,7 +96,7 @@ export function MonitoringPage() {
 
         <Card className="p-4 border-purple-500/20 bg-purple-950/10">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-400">Total Job Runs</span>
+            <span className="text-sm font-medium text-zinc-400">Total Job Runs (30-Day)</span>
             <Activity className="h-5 w-5 text-purple-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-purple-400">{totalRuns}</div>
@@ -103,10 +106,14 @@ export function MonitoringPage() {
         <Card className="p-4 border-amber-500/20 bg-amber-950/10">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-zinc-400">Engine Health</span>
-            <Server className="h-5 w-5 text-amber-400" />
+            <Server className={`h-5 w-5 ${isDisconnected ? "text-rose-400" : "text-amber-400"}`} />
           </div>
-          <div className="mt-2 text-2xl font-bold text-emerald-400">HEALTHY</div>
-          <p className="mt-1 text-xs text-zinc-500">Embedded JDK HttpServer on port 8081</p>
+          <div className={`mt-2 text-2xl font-bold ${isDisconnected ? "text-rose-400" : "text-emerald-400"}`}>
+            {engineHealthStatus}
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {isDisconnected ? "Backend API unreachable" : "Embedded JDK HttpServer on port 8081"}
+          </p>
         </Card>
       </div>
 

@@ -123,6 +123,10 @@ public final class JdbcJobRunRepository implements JobRunRepository {
     private QueryParts buildWhere(RunQuery query) {
         List<String> clauses = new ArrayList<>();
         List<Object> values = new ArrayList<>();
+        query.workflowId().ifPresent(workflowId -> {
+            clauses.add("workflow_id = ?");
+            values.add(workflowId.value());
+        });
         query.jobId().ifPresent(jobId -> {
             clauses.add("job_id = ?");
             values.add(jobId.value());

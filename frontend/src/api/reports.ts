@@ -6,8 +6,9 @@ export async function fetchJobStats(): Promise<JobRunSummary[]> {
   return data;
 }
 
-export async function fetchJobRuns(): Promise<JobRunRecord[]> {
-  const { data } = await apiClient.get<JobRunRecord[]>("/runs");
+export async function fetchJobRuns(workflowId?: string): Promise<JobRunRecord[]> {
+  const url = workflowId ? `/runs?workflowId=${encodeURIComponent(workflowId)}` : "/runs";
+  const { data } = await apiClient.get<JobRunRecord[]>(url);
   return data;
 }
 

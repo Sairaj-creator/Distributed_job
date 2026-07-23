@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
@@ -155,10 +156,30 @@ public final class StatusHttpApi implements AutoCloseable {
             write(exchange, 200, "[]");
             return;
         }
-        var query = com.taskflow.persistence.RunQuery.builder().build();
+        Map<String, String> queryParams = parseQuery(exchange.getRequestURI().getRawQuery());
+        var builder = com.taskflow.persistence.RunQuery.builder();
+        if (queryParams.containsKey("workflowId") && !queryParams.get("workflowId").isBlank()) {
+            builder.workflowId(WorkflowId.of(queryParams.get("workflowId")));
+        }
+        if (queryParams.containsKey("jobId") && !queryParams.get("jobId").isBlank()) {
+            builder.jobId(com.taskflow.core.JobId.of(queryParams.get("jobId")));
+        }
         var page = com.taskflow.persistence.Page.first(100);
-        var runs = jobRunRepository.findRuns(query, page).items();
+        var runs = jobRunRepository.findRuns(builder.build(), page).items();
         write(exchange, 200, jsonWriter.jobRuns(runs));
+    }
+
+    private Map<String, String> parseQuery(String rawQuery) {
+        if (rawQuery == null || rawQuery.isBlank()) {
+            return Map.of();
+        }
+        return java.util.Arrays.stream(rawQuery.split("&"))
+                .map(p -> p.split("=", 2))
+                .filter(p -> p.length > 0 && !p[0].isBlank())
+                .collect(java.util.stream.Collectors.toMap(
+                        p -> java.net.URLDecoder.decode(p[0], StandardCharsets.UTF_8),
+                        p -> p.length > 1 ? java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8) : "",
+                        (v1, v2) -> v2));
     }
 
     private void jobs(HttpExchange exchange) throws IOException {
