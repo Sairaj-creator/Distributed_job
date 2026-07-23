@@ -1,7 +1,6 @@
 package com.taskflow.scheduler;
 
 import com.taskflow.core.JobDefinition;
-import com.taskflow.core.JobId;
 import com.taskflow.core.Workflow;
 import com.taskflow.core.WorkflowId;
 import com.taskflow.exception.CyclicWorkflowException;

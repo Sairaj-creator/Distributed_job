@@ -7,7 +7,6 @@ import com.taskflow.concurrency.NamedThreadFactory;
 import com.taskflow.core.JobDefinition;
 import com.taskflow.core.JobRun;
 import com.taskflow.core.JobStatus;
-import com.taskflow.core.OverlapPolicy;
 import com.taskflow.core.Workflow;
 import com.taskflow.events.EventBus;
 import com.taskflow.events.JobStatusEvent;
